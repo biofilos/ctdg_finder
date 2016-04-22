@@ -73,7 +73,7 @@ else:
                                                              (cgp.annotation.all_genes.chromosome != 'NA')]
     # Genes sequences
     cgp.annotation.all_genes_fasta = 'all_seqs.fa'
-    # Reference sequence for jackHMMer
+    # Reference sequence for Blast
     ref_seq = args.ref_seq
     assert os.path.exists(ref_seq), 'Reference sequence does not exist'
     # Name of gene family
@@ -106,7 +106,7 @@ else:
     else:
         print("Running analysis with all species")
     family_blast = cgp.blast.parse("{0}/report/{0}.blast".format(name_family), 2, True, species)
-
+    family_blast['species'] = family_blast['species'].map(lambda x: str(x.replace(' ', '_')))
     if len(family_blast) > 0:
         # Remove genes in non-assembled chromosomes
 
