@@ -40,14 +40,23 @@ parser.add_argument("--cpu",
                     type=int,
                     default=1,
                     help="CPU to be used")
+parser.add_argument("--db",
+                    action="store",
+                    help="Directory with gene annotation and blast database")
+
 
 # Check if blast is installed
 blast_path = shutil.which('blastp')
 assert bool(blast_path), "blastp is not installed or it is not in your PATH"
-# Check if blast database exists
-blast_files = sum([os.path.exists('all_seqs.fa.' + x) for x in ['phr', 'pin', 'psq']])
-assert blast_files == 3, "Some of the blast database files with prefix all_seqs.fa do not exist"
+
 args = parser.parse_args()
+
+# check if database exists
+assert os.path.exists(args.db), "directory {} with database does not exist".format(args.db)
+# Check if blast database exists
+blast_files = sum([os.path.exists('{}/all_seqs.fa.'.format(args.db) + x) for x in ['phr', 'pin', 'psq']])
+assert blast_files == 3, "Some of the blast database files with prefix all_seqs.fa do not exist"
+
 out_dir = args.out_dir
 name_family = args.name_family
 # Remove unfinished analysis
@@ -59,20 +68,20 @@ if os.path.exists("{}/{}".format(out_dir, name_family)):
     print("Results for {} are already saved in {}".format(name_family, out_dir))
 else:
 
-    genomes_file = 'chromosomes.csv'
+    genomes_file = '{}/chromosomes.csv'.format(args.db)
     assert os.path.exists(genomes_file), 'Chromosome information file does not exist'
     cgp.annotation.genomes = pd.DataFrame.from_csv(genomes_file)
     cgp.annotation.genomes = cgp.annotation.genomes.dropna()
 
     # Genes annotation
-    genes_annotation_file = 'genes_parsed.csv'
+    genes_annotation_file = '{}/genes_parsed.csv'.format(args.db)
     assert os.path.exists(genomes_file), 'Genes annotation file does not exist'
     cgp.annotation.all_genes = pd.DataFrame.from_csv(genes_annotation_file)
     # Remove genes in non-assembled chromosomes
     cgp.annotation.all_genes = cgp.annotation.all_genes.loc[~(cgp.annotation.all_genes.chromosome.isnull()) &
                                                              (cgp.annotation.all_genes.chromosome != 'NA')]
     # Genes sequences
-    cgp.annotation.all_genes_fasta = 'all_seqs.fa'
+    cgp.annotation.all_genes_fasta = '{}/all_seqs.fa'.format(args.db)
     # Reference sequence for Blast
     ref_seq = args.ref_seq
     assert os.path.exists(ref_seq), 'Reference sequence does not exist'
@@ -141,8 +150,8 @@ else:
 
             # Partly fill required arguments on these functions, so that map() can be run only
             # with the table list
-            one_arg_blast_samples = partial(cgp.blast_sampling, gw=False, samples=blast_samples_size)
-            one_arg_blast_samples_gw = partial(cgp.blast_sampling, gw=True, samples=blast_samples_size)
+            one_arg_blast_samples = partial(cgp.blast_sampling, gw=False, samples=blast_samples_size, db=args.db)
+            one_arg_blast_samples_gw = partial(cgp.blast_sampling, gw=True, samples=blast_samples_size, db=args.db)
             # Run the sampling algorithm
             print("Analyzing {} proto-cluster(s)".format(len(cluster_rows)))
             print("{:<25} {:<9} {:<25} {}".format('species','paralogs','proto-cluster','sample (95P)'))
