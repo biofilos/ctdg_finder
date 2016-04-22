@@ -170,10 +170,10 @@ def grab_paralogs(blast_dir, acc_list, sp, chrom, paralogs):
     return paralogs_max
 
 
-def blast_sampling(pre_cluster_table, gw, samples):
+def blast_sampling(pre_cluster_table, gw, samples, db):
     sp = pre_cluster_table.loc[:, 'species'].values[0]
     # Load blast hits with queries from the speices
-    sp_paralogs = json.loads(open("blasts/{}.json".format(sp.replace(' ', '_'))).read())
+    sp_paralogs = json.loads(open("{}/blasts/{}.json".format(db, sp.replace(' ', '_'))).read())
     cluster = pre_cluster_table.loc[:, 'cluster'].values[0]
     cluster_length = abs(pre_cluster_table.loc[:, 'end'].values[0] - pre_cluster_table.loc[:, 'start'].values[0])
     # Set output directory depending of the type of sampling
