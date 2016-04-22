@@ -86,7 +86,7 @@ def parse(out_file, acc_col, tab=True, sp_list=[], for_dict=False):
             sub_table = pd.DataFrame(list(fields), columns=['query', 'species', 'chromosome', 'prot_acc',
                                                             'symbol', 'start', 'end', 'strand'])
 
-            sub_table['species'] = sub_table['species'].apply(lambda x: str(x).replace('_', ' '))
+            # sub_table['species'] = sub_table['species'].apply(lambda x: str(x).replace('_', ' '))
             # Only consider hits from selected species
             if len(sp_list) > 0:
                 sub_table = sub_table.loc[sub_table['species'].isin(sp_list)]
