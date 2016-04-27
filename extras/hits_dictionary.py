@@ -17,7 +17,7 @@ all_genes['chromosome'] = all_genes['chromosome'].astype(str)
 # Parse parsed blasts
 for table in glob('*.blast_out'):
     # Get species from file name
-    sp = table.split('.')[0].replace('_', ' ')
+    sp = table.split('.')[0]
     print(sp)
     # Extract genes from that species
     sp_genes = all_genes.loc[all_genes['species'] == sp]
