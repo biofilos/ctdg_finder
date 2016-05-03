@@ -86,7 +86,7 @@ def get_assembly(sp_item):
         else:
             assemblies_table = pd.DataFrame.from_dict(assembled_chroms, orient='index')
             assemblies_table.reset_index(inplace=True)
-            assemblies_table.columns = ['chromosome', 'species', 'length']
+            assemblies_table.columns = ['chromosome', 'sp', 'length']
         return assemblies_table
     except requests.HTTPError:
         print()
@@ -101,7 +101,7 @@ def get_annotation(assemblies_df):
     # Get species information
     assemblies_df.chromosome = assemblies_df.chromosome.astype(str)
     assemblies_df.length = assemblies_df.length.astype(int)
-    species_table = assemblies_df.set_index(['species', 'chromosome'])
+    species_table = assemblies_df.set_index(['sp', 'chromosome'])
     # Set server address
     annotation_list = []
     # Parse a table for each chromosome

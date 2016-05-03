@@ -13,34 +13,31 @@ import cgpFinder as cgp
 
 # Define input data location
 parser = argparse.ArgumentParser("Paralogs cluster annotation pipeline")
-parser.add_argument("--name_family",
+parser.add_argument("--name_family", "-n",
                     action='store',
                     help="Name of the gene family")
 
-parser.add_argument("--ref_seq",
+parser.add_argument("--ref_seq", "-r",
                     action='store',
                     help="reference gene family sequence")
 
-parser.add_argument("--blast_samples",
+parser.add_argument("--blast_samples", "-b",
                     action="store",
                     type=int,
                     help="Number of samples to build empirical distribution of paralogs")
-parser.add_argument("--seq_analysis",
-                    action="store_true",
-                    help="Download sequences and calculate alignments")
-parser.add_argument("--sp",
+parser.add_argument("--sp", "-s",
                     action="append",
                     help="Species to run the analysis on (must be written in quotes)")
-parser.add_argument("--out_dir",
+parser.add_argument("--out_dir", "-o",
                     action="store",
                     default='cgp_out',
                     help="Output directory")
-parser.add_argument("--cpu",
+parser.add_argument("--cpu", "-c",
                     action="store",
                     type=int,
                     default=1,
                     help="CPU to be used")
-parser.add_argument("--db",
+parser.add_argument("--db", "-d",
                     action="store",
                     help="Directory with gene annotation and blast database")
 
@@ -80,6 +77,7 @@ else:
     # Remove genes in non-assembled chromosomes
     cgp.annotation.all_genes = cgp.annotation.all_genes.loc[~(cgp.annotation.all_genes.chromosome.isnull()) &
                                                              (cgp.annotation.all_genes.chromosome != 'NA')]
+    cgp.annotation.all_genes['chromosome'] = cgp.annotation.all_genes['chromosome'].astype(str)
     # Genes sequences
     cgp.annotation.all_genes_fasta = '{}/all_seqs.fa'.format(args.db)
     # Reference sequence for Blast
@@ -201,11 +199,11 @@ else:
         else:
             print("No clusters for {}".format(name_family))
         # Sequence analysis
-        if args.seq_analysis:
-            print("Downloading sequences")
-            cgp.phylo.download_genes(family_blast)
-            print("Aligning")
-            cgp.phylo.align()
+#        if args.seq_analysis:
+#            print("Downloading sequences")
+#            cgp.phylo.download_genes(family_blast)
+#            print("Aligning")
+#            cgp.phylo.align()
     else:
         print("Not enough blast hits({}) to perform the analysis".format(len(family_blast)))
     # End
