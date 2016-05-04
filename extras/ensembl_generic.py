@@ -74,6 +74,8 @@ def get_assembly(sp_item):
             #                                                   'random' in chrom['name'] or 'hap' in chrom['name']):
             if chrom['coord_system'] == 'chromosome' and not (chrom['name'].startswith('Un') or
                                                               chrom['name'].startswith('un') or
+                                                              chrom['name'].endswith('random') or
+                                                              'hap' in chrom['name'] or
                                                               chrom['name'] in ['MT', 'cutchr', 'Mt', 'Pt',
                                                                                 'random', 'hap',
                                                                                 'dmel_mitochondrion_genome',
