@@ -1,4 +1,4 @@
-from bioservices import ensembl, UniProt, biomart
+from bioservices import biomart
 import pandas as pd
 import io
 import requests
@@ -20,7 +20,7 @@ big_annotation = pd.read_csv(gene_table)
 big_annotation['chromosome'] = big_annotation['chromosome'].astype(str)
 big_annotation['strand'] = big_annotation['strand'].astype(int)
 big_annotation.set_index(['species','chromosome'], inplace=True)
-chunk_size = 100
+chunk_size = int(sys.argv[3])
 for sp, chrom in set(big_annotation.index):
     out_file = "{}/{}_{}_fx.json".format(out_dir, sp, chrom)
     print("{}: {}".format(sp, chrom))

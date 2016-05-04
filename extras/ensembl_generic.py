@@ -255,11 +255,12 @@ coding_no_overlap.loc[null_symbols, 'symbol'] = coding_no_overlap.loc[null_symbo
 coding_no_overlap.set_index('acc', inplace=True)
 coding_no_overlap.to_csv("genes_parsed.csv")
 
-if os.path.exists("all_seqs.fa"):
-    downloaded = [gene.id.split("|")[2] for gene in SeqIO.parse("all_seqs.fa", "fasta")]
-else:
-    downloaded = []
-to_download = coding_no_overlap.loc[~(coding_no_overlap.index.isin(downloaded))]
+# Use get_sequences.py
+#if os.path.exists("all_seqs.fa"):
+#    downloaded = [gene.id.split("|")[2] for gene in SeqIO.parse("all_seqs.fa", "fasta")]
+#else:
+#    downloaded = []
+#to_download = coding_no_overlap.loc[~(coding_no_overlap.index.isin(downloaded))]
 # Remove genes with duplciated accession numbers
-to_download= to_download.reset_index().drop_duplicates('acc').set_index('acc')
-download_seq(to_download)
+#to_download= to_download.reset_index().drop_duplicates('acc').set_index('acc')
+#download_seq(to_download)
