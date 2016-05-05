@@ -187,6 +187,7 @@ if not os.path.exists('genes_cds.csv'):
     out_data = parse_gb()
     out_data =  out_data.loc[~(out_data['name'].map(lambda x: 'isoform X' in x))]
     # Save full annotation
+    out_data['species'] = out_data['species'].map(lambda x: x.replace(' ','_')
     out_data.to_csv('genes_cds.csv')
     # Remove some columns
     mini = out_data.loc[:, ['species', 'chromosome', 'symbol', 'start', 'end', 'length', 'strand']]
@@ -261,6 +262,7 @@ with futures.ProcessPoolExecutor(CPUS) as pool:
 
 assembly_table = pd.DataFrame(list(assembly_list), columns=['sp', 'chromosome', 'taxid',
                                                       'GI', 'chr_acc', 'Assembly', 'length'])
+assembly_table['sp'] = assembly_table['sp'].map(lambda x: x.replace(' ','_')
 
 assembly_table.to_csv('chromosomes.csv')
 print("Assembly file, generated")
