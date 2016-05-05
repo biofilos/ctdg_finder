@@ -35,7 +35,7 @@ gene_table = gene_table.loc[~(gene_table.index.isin(downloaded))]
 # gene_table.set_index(['species','chromosome'],inplace=True)
 # Iterate over species and chromosomes
 for sp, chrom in set(gene_table.set_index(['species','chromosome']).index):
-    print("{}\n{}".format(sp,chrom))
+    print("{}\t{}".format(sp,chrom))
     # Get dataset for each species
     sp_code = sp[0]+sp.split("_")[-1]
     for sp_dataset in datasets:
