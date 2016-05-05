@@ -2,7 +2,7 @@
 ## Preprocessing steps
 
 In order to run CGPFinder, a proteome containing all the proteins for non-overlapping genes in the species under consideration is needed. In addition, a csv table with annotation for such genes is required.  
-This document describes the steps that were taken to obtain and parse the above mentioned requirements.  
+This document describes the steps that were taken to obtain and parse the above mentioned requirements. The scripts mentioned in this document are stored in the `extras/` directory.  
   
 The scripts mentioned in this document are stored in the directory extras.  
 
