@@ -7,21 +7,20 @@ import numpy as np
 import cgpFinder as cgp
 
 # Change directory to location of blast files
-os.chdir(sys.argv[1])
-
+# os.chdir(sys.argv[1])
+blast_folder = sys.argv[1]
 # Load proteome annotation
 all_genes = pd.read_csv(sys.argv[2])
 # Make sure the chromosome is a string type
 all_genes['chromosome'] = all_genes['chromosome'].astype(str)
 
 # Parse parsed blasts
-for table in glob('*.blast_out'):
+for table in glob('{}/*.blast_out'.format(blast_folder)):
     # Get species from file name
-    sp = table.split('.')[0]
+    sp = table.split('.')[0].split('/')[-1]
     print(sp)
     # Extract genes from that species
     sp_genes = all_genes.loc[all_genes['species'] == sp]
-
     # Load blast for that species
     sp_table = pd.read_csv(table)
     sp_table['chromosome'] = sp_table['chromosome'].astype(str)

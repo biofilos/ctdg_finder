@@ -69,11 +69,12 @@ else:
     assert os.path.exists(genomes_file), 'Chromosome information file does not exist'
     cgp.annotation.genomes = pd.DataFrame.from_csv(genomes_file)
     cgp.annotation.genomes = cgp.annotation.genomes.dropna()
-
+    cgp.annotation.genomes['chromosome'] = cgp.annotation.genomes['chromosome'].astype(str)
     # Genes annotation
     genes_annotation_file = '{}/genes_parsed.csv'.format(args.db)
     assert os.path.exists(genomes_file), 'Genes annotation file does not exist'
     cgp.annotation.all_genes = pd.DataFrame.from_csv(genes_annotation_file)
+    cgp.annotation.all_genes['chromosome'] = cgp.annotation.all_genes['chromosome'].astype(str)
     # Remove genes in non-assembled chromosomes
     cgp.annotation.all_genes = cgp.annotation.all_genes.loc[~(cgp.annotation.all_genes.chromosome.isnull()) &
                                                              (cgp.annotation.all_genes.chromosome != 'NA')]
