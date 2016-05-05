@@ -10,10 +10,11 @@ are needed
 '''
 input_file = sys.argv[1]
 all_seqs = sys.argv[2]
+cpus = sys.argv[3]
 output_file = input_file.replace('fasta', 'blast')
-sp = input_file.replace('.fasta', '').replace('_', ' ').split('/')[-1]
+sp = input_file.replace('.fasta', '').split('/')[-1]
 
-cgp.blast.exe(8, input_file, all_seqs, output_file)
+cgp.blast.exe(cpus, input_file, all_seqs, output_file)
 
 sub_table = cgp.blast.parse(output_file, 2, True, [sp], True)
 
