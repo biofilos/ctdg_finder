@@ -19,9 +19,9 @@ for col in ['start','end','length','strand']:
 chunk_size = int(sys.argv[2])
 # Setup server
 b = biomart.BioMart()
-b.host = 'www.ensembl.org'
+b.host = 'plants.ensembl.org'
 
-datasets = b.datasets("ENSEMBL_MART_ENSEMBL")
+datasets = b.datasets("plants_mart")
 
 # Set sequence file name
 seq_file = 'all_seqs.fa'
@@ -54,7 +54,8 @@ for sp, chrom in set(gene_table.set_index(['species','chromosome']).index):
         ids_str = ','.join(chunk)
         b.add_filter_to_xml('ensembl_gene_id',ids_str)
         xml = b.get_xml()
-        result = requests.get('http://useast.ensembl.org/biomart/martservice?query='+xml)
+        xml = xml.replace('virtualSchemaName = "default"','virtualSchemaName = "plants_mart"')
+        result = requests.get('http://plants.ensembl.org/biomart/martservice?query='+xml)
         try:
             tab_result = pd.read_csv(io.StringIO(result.text), sep='\t',header=None)
         except:
