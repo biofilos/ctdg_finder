@@ -1,5 +1,5 @@
 import sys
-
+import json
 import numpy as np
 import os
 import pandas as pd
@@ -16,26 +16,29 @@ Run it as ./assembly_info.py species_list.txt
 
 
 # Check in which database each species is
+file_in = sys.argv[2]
+# Load assemblies dictionary
+assemblies = sys.argv[1]
+out_dir = file_in + '_db'
+if not os.path.exists(out_dir):
+	os.makedirs(out_dir)
+ensembls = json.loads(open(assemblies).read())
 
-ensembls = {}
-for server in ["http://rest.ensemblgenomes.org", "http://rest.ensembl.org"]:
-    for ext in ["/info/species?", "/info/species?division=EnsemblPlants"]:
-        r = requests.get(server+ext, headers={ "Content-Type" : "application/json"})
-        if not r.ok:
-            r.raise_for_status()
-            sys.exit()
-        else:
-            decoded = r.json()
-            for sp in decoded['species']:
-                species = sp['name']
-                ensembls[species] = server
+## This part of the code was implemented as a separate script
+#for server in ["http://rest.ensemblgenomes.org", "http://rest.ensembl.org"]:
+#    for ext in ["/info/species?", "/info/species?division=EnsemblPlants"]:
+#        r = requests.get(server+ext, headers={ "Content-Type" : "application/json"})
+#        if not r.ok:
+#            r.raise_for_status()
+#            sys.exit()
+#        else:
+#            decoded = r.json()
+#            for sp in decoded['species']:
+#                species = sp['name']
+#                ensembls[species] = server
 
 # Get the server for each of the species of interest
-pre_list = [line.strip('n') for line in open(file_in) if line != '\n']
-#pre_list =  ["homo_sapiens", "mus_musculus", "anolis_carolinensis", "ciona_intestinalis", "caenorhabditis_elegans",
-#             "gallus_gallus", "latimeria_chalumnae", "drosophila_melanogaster", "petromyzon_marinus",
-#             "monodelphis_domestica", "saccharomyces_cerevisiae", "xenopus_tropicalis", "danio_rerio",
-#             "arabidopsis_thaliana", "chlamydomonas_reinhardtii", "oryza_sativa", "physcomitrella_patens"]
+pre_list = [line.strip('\n') for line in open(file_in) if line != '\n']
 
 sp_server = {}
 for sp in pre_list:
@@ -68,13 +71,9 @@ def get_assembly(sp_item):
         for chrom in decoded['top_level_region']:
             # Some unassembled chromosomes in horse are named UnXXX, so an explicit statement is set
             # to filter those out. Also, skip mitochondrial chromosomes
-            # if chrom['coord_system'] == 'chromosome' and not (chrom['name'].startswith('Un') or
-            #                                                   chrom['name'].startswith('un') or
-            #                                                   chrom['name'] in ['MT', 'cutchr', 'Mt', 'Pt'] or
-            #                                                   'random' in chrom['name'] or 'hap' in chrom['name']):
             if chrom['coord_system'] == 'chromosome' and not (chrom['name'].startswith('Un') or
                                                               chrom['name'].startswith('un') or
-                                                              chrom['name'].endswith('random') or
+                                                              'random' in chrom['name'] or
                                                               'hap' in chrom['name'] or
                                                               chrom['name'] in ['MT', 'cutchr', 'Mt', 'Pt',
                                                                                 'random', 'hap',
@@ -88,7 +87,7 @@ def get_assembly(sp_item):
         else:
             assemblies_table = pd.DataFrame.from_dict(assembled_chroms, orient='index')
             assemblies_table.reset_index(inplace=True)
-            assemblies_table.columns = ['chromosome', 'sp', 'length']
+            assemblies_table.columns = ['chromosome', 'species', 'length']
         return assemblies_table
     except requests.HTTPError:
         print()
@@ -103,7 +102,7 @@ def get_annotation(assemblies_df):
     # Get species information
     assemblies_df.chromosome = assemblies_df.chromosome.astype(str)
     assemblies_df.length = assemblies_df.length.astype(int)
-    species_table = assemblies_df.set_index(['sp', 'chromosome'])
+    species_table = assemblies_df.set_index(['species', 'chromosome'])
     # Set server address
     annotation_list = []
     # Parse a table for each chromosome
@@ -170,8 +169,8 @@ def download_seq(ensembls):
     :param ensembls: pandas dataframe with genes annotation
     :return:
     """
-    plant_fasta = "all_seqs.fa"
-    all_seqs = open(plant_fasta, "a")
+    fasta = "{}/all_seqs.fa".format(out_dir)
+    all_seqs = open(fasta, "a")
     #timer_to_flush = 0
     for gene in ensembls.index:
         seq_record = ensembls.loc[gene]
@@ -216,19 +215,19 @@ def download_seq(ensembls):
 
 
 print("Getting assembly information")
-if not os.path.exists('chromosomes.csv'):
+if not os.path.exists('{}/chromosomes.csv'.format(out_dir)):
     assemblies = pd.concat(map(get_assembly, sp_server))
     # Save to file
-    assemblies.to_csv('chromosomes.csv')
+    assemblies.to_csv('{}/chromosomes.csv'.format(out_dir))
 else:
-    assemblies = pd.read_csv('chromosomes.csv')
+    assemblies = pd.read_csv('{}/chromosomes.csv'.format(out_dir))
 
 print("Downloading annotations")
-if not os.path.exists('annotation.csv'):
+if not os.path.exists('{}/annotation.csv'.format(out_dir)):
     annotation_table = get_annotation(assemblies)
-    annotation_table.to_csv('annotation.csv')
+    annotation_table.to_csv('{}/annotation.csv'.format(out_dir))
 else:
-    annotation_table = pd.read_csv('annotation.csv')
+    annotation_table = pd.read_csv('{}/annotation.csv'.format(out_dir))
 
 protein_coding = annotation_table['biotype'] == 'protein_coding'
 coding_annotation = annotation_table.loc[protein_coding]
@@ -236,15 +235,15 @@ coding_annotation = annotation_table.loc[protein_coding]
 # Remove overlapping genes
 non_overlap_list = []
 reindex = coding_annotation.set_index(['species', 'chromosome'])
-if not os.path.exists("coding_no_overlap.csv"):
+if not os.path.exists("{}/coding_no_overlap.csv".format(out_dir)):
     for sp, chromosome in set(reindex.index):
         chrom_tab = coding_annotation.loc[(coding_annotation['species'] == sp) &
                                           (coding_annotation['chromosome'] == chromosome)]
         non_overlap_list.append(remove_overlaps(chrom_tab))
     coding_no_overlap = pd.concat(non_overlap_list)
-    coding_no_overlap.to_csv('coding_no_overlap.csv')
+    coding_no_overlap.to_csv('{}/coding_no_overlap.csv'.format(out_dir))
 else:
-    coding_no_overlap = pd.read_csv("coding_no_overlap.csv")
+    coding_no_overlap = pd.read_csv("{}/coding_no_overlap.csv".format(out_dir))
 coding_no_overlap['length'] = coding_no_overlap['end'] - coding_no_overlap['start']
 coding_no_overlap['length'] = coding_no_overlap['length'].astype(int)
 coding_no_overlap = coding_no_overlap.loc[:, ['gene_id', 'start', 'end', 'length',
@@ -253,14 +252,14 @@ coding_no_overlap.rename(columns={'gene_id':'acc','external_name':'symbol'},inpl
 null_symbols = coding_no_overlap['symbol'].isnull()
 coding_no_overlap.loc[null_symbols, 'symbol'] = coding_no_overlap.loc[null_symbols, 'acc']
 coding_no_overlap.set_index('acc', inplace=True)
-coding_no_overlap.to_csv("genes_parsed.csv")
+coding_no_overlap.to_csv("{}/genes_parsed.csv".format(out_dir))
 
-# Use get_sequences.py
-#if os.path.exists("all_seqs.fa"):
-#    downloaded = [gene.id.split("|")[2] for gene in SeqIO.parse("all_seqs.fa", "fasta")]
-#else:
-#    downloaded = []
-#to_download = coding_no_overlap.loc[~(coding_no_overlap.index.isin(downloaded))]
+if os.path.exists("{}/all_seqs.fa".format(out_dir)):
+    downloaded = [gene.id.split("|")[2] for gene in SeqIO.parse("{}/all_seqs.fa".format(out_dir), "fasta")]
+else:
+    downloaded = []
+to_download = coding_no_overlap.loc[~(coding_no_overlap.index.isin(downloaded))]
 # Remove genes with duplciated accession numbers
-#to_download= to_download.reset_index().drop_duplicates('acc').set_index('acc')
-#download_seq(to_download)
+to_download= to_download.reset_index().drop_duplicates('acc').set_index('acc')
+
+download_seq(to_download)
