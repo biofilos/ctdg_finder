@@ -163,57 +163,6 @@ def remove_overlaps(chrom_only):
     return non_overlapping_table
 
 
-def download_seq(ensembls):
-    """
-    Downloads transcript sequences given a transcript ID
-    :param ensembls: pandas dataframe with genes annotation
-    :return:
-    """
-    fasta = "{}/all_seqs.fa".format(out_dir)
-    all_seqs = open(fasta, "a")
-    #timer_to_flush = 0
-    for gene in ensembls.index:
-        seq_record = ensembls.loc[gene]
-        sp = seq_record['species']
-        chrom = str(seq_record['chromosome'])
-        # seq = gene
-        start = int(seq_record['start'])
-        end = int(seq_record['end'])
-        strand = int(seq_record['strand'])
-        symbol = seq_record['symbol']
-        if symbol is np.nan:
-            symbol = gene
-        # Check if the gene has already been downloaded
-        seq_name = "{}|{}|{}|{}|{}|{}|{}".format(sp, chrom, gene, symbol,
-                                                 start, end, strand)
-        seq_name = seq_name.replace(' ', '--')
-        #timer_to_flush += 1
-        server = sp_server[sp]
-        ext = "/sequence/id/{}?multiple_sequences=1;type=protein".format(gene)
-        headers = {"Content-Type": "application/json"}
-        r = requests.get(server + ext, headers=headers)
-
-        if not r.ok:
-            r.raise_for_status()
-            sys.exit()
-        decoded = r.json()
-        longest = {'seq': ''}
-        if len(decoded) > 1:
-            for isoform in decoded:
-                if len(isoform['seq']) > len(longest['seq']):
-                    longest = isoform
-        else:
-            longest = decoded[0]
-
-        all_seqs.write(">{}\n{}\n".format(seq_name, longest['seq']))
-        # Write in file every 10 genes
-        #if timer_to_flush == 200:
-        #    all_seqs.flush()
-        #    timer_to_flush = 0
-        print(sp, symbol)
-    all_seqs.close()
-
-
 print("Getting assembly information")
 if not os.path.exists('{}/chromosomes.csv'.format(out_dir)):
     assemblies = pd.concat(map(get_assembly, sp_server))
@@ -246,20 +195,12 @@ else:
     coding_no_overlap = pd.read_csv("{}/coding_no_overlap.csv".format(out_dir))
 coding_no_overlap['length'] = coding_no_overlap['end'] - coding_no_overlap['start']
 coding_no_overlap['length'] = coding_no_overlap['length'].astype(int)
-coding_no_overlap = coding_no_overlap.loc[:, ['gene_id', 'start', 'end', 'length',
+coding_no_overlap.reset_index(inplace=True)
+coding_new_names = coding_no_overlap.loc[:, ['gene_id', 'start', 'end', 'length',
                                               'strand', 'chromosome', 'species', 'external_name']]
-coding_no_overlap.rename(columns={'gene_id':'acc','external_name':'symbol'},inplace=True)
-null_symbols = coding_no_overlap['symbol'].isnull()
-coding_no_overlap.loc[null_symbols, 'symbol'] = coding_no_overlap.loc[null_symbols, 'acc']
-coding_no_overlap.set_index('acc', inplace=True)
-coding_no_overlap.to_csv("{}/genes_parsed.csv".format(out_dir))
+coding_new_names.rename(columns={'gene_id':'acc','external_name':'symbol'},inplace=True)
+null_symbols = coding_new_names['symbol'].isnull()
+coding_new_names.loc[null_symbols, 'symbol'] = coding_new_names.loc[null_symbols, 'acc']
+coding_new_names.set_index('acc', inplace=True)
+coding_new_names.to_csv("{}/genes_parsed.csv".format(out_dir))
 
-if os.path.exists("{}/all_seqs.fa".format(out_dir)):
-    downloaded = [gene.id.split("|")[2] for gene in SeqIO.parse("{}/all_seqs.fa".format(out_dir), "fasta")]
-else:
-    downloaded = []
-to_download = coding_no_overlap.loc[~(coding_no_overlap.index.isin(downloaded))]
-# Remove genes with duplciated accession numbers
-to_download= to_download.reset_index().drop_duplicates('acc').set_index('acc')
-
-download_seq(to_download)
