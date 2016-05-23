@@ -8,13 +8,14 @@ from concurrent import futures
 from copy import copy
 from functools import partial
 from glob import glob
-from multiprocessing import Pool
 from time import time
+
 import numpy as np
 import pandas as pd
 from sklearn.cluster import MeanShift
 from termcolor import colored
 
+# Define arguments
 parser = argparse.ArgumentParser("Paralogs cluster annotation pipeline")
 parser.add_argument("--name_family", "-n",
                     action='store',
@@ -45,17 +46,18 @@ parser.add_argument("--db", "-d",
                     action="store",
                     help="Directory with gene annotation and blast database")
 
-# Check if blast is installed
+# Check if blast is installed. Since this is not required for defining the analysis, it is executed before
+# the class definition
 blast_path = shutil.which('blastp')
 assert bool(blast_path), "blastp is not installed or it is not in your PATH"
 
+# Parse arguments
 args = parser.parse_args()
 
 
-### Define class CGP
+# Define class CGP
 class CGP:
-    def __init__(self, name_family, out_dir, db, ref_sequence, blast_samples, cpus, sp):
-        self.cpus = cpus
+    def __init__(self, name_family, out_dir, db, ref_sequence, blast_samples, sp):
         self.sp = sp
         self.blast_samples = blast_samples
         self.ref_sequence = ref_sequence
@@ -75,11 +77,11 @@ class CGP:
         self.genome_wide = []
 
     def check_arguments(self):
-        '''
+        """
         Perform assertion statements to check if all the files needed
         for the analysis are present
         :return: None
-        '''
+        """
         # Check that the directory with the database exists
         assert os.path.exists(self.out_dir), "directory {} with database does not exist".format(self.db)
         db_path = '{}/all_seqs.fa.'.format(self.db)
@@ -94,6 +96,8 @@ class CGP:
                                                  "{}/genes_parsed.csv does not exist".format(self.genome_file)
         # Check that the reference sequence exists
         assert os.path.exists(self.ref_sequence), "reference sequence {} des not exist".format(self.ref_sequence)
+        # Check that number of blast samples has been set
+        assert self.blast_samples, "Number of blast samples was not specified"
 
     def remove_if_unfinished(self):
         """
@@ -105,6 +109,10 @@ class CGP:
             shutil.rmtree(self.name_family)
 
     def init_tables(self):
+        """
+        Initialize genome and gene annotation tables
+        :return: None
+        """
         self.genomes = pd.read_csv(self.genome_file)
         self.genomes.dropna(inplace=True)
         self.genomes['chromosome'] = self.genomes['chromosome'].astype(str)
@@ -115,6 +123,11 @@ class CGP:
         self.all_genes.set_index('acc', inplace=True)
 
     def select_species(self):
+        """
+        Check if the specified species are included in the CGPFinder database
+        and format a list in the class
+        :return:
+        """
         if len(self.sp) == 0:
             print("Running analysis with all species")
         else:
@@ -141,7 +154,8 @@ class CGP:
         print("Directory tree for {} was created.".format(self.name_family))
 
     # Analysys
-    def blast_filter(self, series):
+    @staticmethod
+    def blast_filter(series):
         """
         This function calculates the length ratio of subject and query in a blast hits table output
         :param series: row of blast output (pd.Series)
@@ -151,12 +165,14 @@ class CGP:
         ratio = min(series[cols]) / max(series[cols])
         return ratio
 
-    def blast_exe(self, cpus, ref, subject, out_file):
+    @staticmethod
+    def blast_exe(cpus, ref, subject, out_file):
         """
         Blast a reference sequence againsts all the sequences in a blast database
+        :param subject: blast database
+        :param cpus: number of cpus to be used by blast
         :param ref: Query
         :param out_file: Output for blast
-        :param acc_col: Field position in the sequence name where the accession number is located
         :return: pd.DataFrame with filtered sequences
         """
         # Set blast command
@@ -179,8 +195,8 @@ class CGP:
         :param for_dict: Analysis for building the json files?
         :return: data frame
         """
-        if len(sp_list) > 0 :
-            print("Running analysis with species:\n")
+        if len(sp_list) > 0:
+            print("Running analysis with species:")
             print("\n".join(sp_list))
         else:
             print("Running analysis with all species")
@@ -221,8 +237,13 @@ class CGP:
                 # Attach the query name to the subject, to include it as a column
                 filtered_blast.loc[:, 'subject'] = filtered_blast.query_acc + '|' + filtered_blast.subject
                 # Extract table from subject names
-                fields = map(lambda x: x.split('|'), filtered_blast.subject.values)
-
+                fields = (i for i in map(lambda x: x.split('|'), filtered_blast.subject.values))
+                temp_fields = open("{}._fields.temp".format(out_file),"w")
+                temp_fields.write("query,species,chromosome,prot_acc,symbol,start,end,strand\n")
+                for line in fields:
+                    temp_fields.write(','.join(line)+'\n')
+                temp_fields.close()
+                del filtered_blast
                 # Set table
                 sub_table = pd.DataFrame(list(fields), columns=['query', 'species', 'chromosome', 'prot_acc',
                                                                 'symbol', 'start', 'end', 'strand'])
@@ -246,7 +267,8 @@ class CGP:
             else:
                 return filtered_blast
 
-    def sp_loop(self, in_table, columns):
+    @staticmethod
+    def sp_loop(in_table, columns):
         """
         Filters a table by a number of columns
         :param in_table: Input table
@@ -255,7 +277,7 @@ class CGP:
         """
         # Initialize the list of tables
         list_results = []
-        for col_set in np.unique(in_table.set_index(columns).index):
+        for col_set in set(in_table.set_index(columns).index):
             filtered_table = in_table
             cols_to_filter = {col_name: col_value for col_name, col_value in zip(columns, col_set)}
             for var in cols_to_filter.keys():
@@ -264,7 +286,7 @@ class CGP:
         return list_results
 
     @property
-    def ms_compiled(self):
+    def ms_compiled(self) -> pd.DataFrame:
         """
         Assemble meanshift table from meanshift analysis
         :ms_result: map object from meanshift analysis
@@ -274,7 +296,12 @@ class CGP:
 
     @property
     def only_clusters_rows(self):
-        table = self.ms_compiled.loc[~(self.ms_compiled['cluster'].isin(["na", "0"]))]
+        """
+        Remove clusters that did not pass the statisti
+        :return:
+        """
+        ms_compiled_temp = self.ms_compiled
+        table = ms_compiled_temp.loc[~(ms_compiled_temp['cluster'].isin(["na", "0"]))]
         only_rows = [sptable for sptable in self.sp_loop(table, ["species", "chromosome", "cluster"])]
         return only_rows
 
@@ -304,8 +331,8 @@ class CGP:
         ms_compiled = self.ms_compiled
         # Identify clusters that didn't make it through the threshold
         for_deletion = new_numbers.loc[new_numbers['paralogs'] < new_numbers['perc95_gw'],
-                                      ['species', 'chromosome', 'cluster']]
-        # Get accession numbers for the genes that are going to be reanotated
+                                       ['species', 'chromosome', 'cluster']]
+        # Get accession numbers for the genes that are going to be re annotated
         accs_for_deletion = pd.merge(ms_compiled, for_deletion, how='inner',
                                      on=['species', 'chromosome', 'cluster'])['prot_acc'].values
         # Remove annotation for cluster name and cluster order
@@ -346,84 +373,87 @@ class CGP:
         # Move result to output directory
         shutil.move(self.name_family, '{}/{}'.format(self.out_dir, self.name_family))
 
-    def set_sample_tables(self, tabs, dataset):
+    @staticmethod
+    def set_sample_tables(tabs, dataset):
         sample_cols = {-1: 'species', 0: 'cluster'}
         tabs = tabs.rename(columns=lambda x: x - 1 if type(x) != int else x)
         tabs = tabs.rename(columns=sample_cols)
         tabs['dataset'] = dataset
         return tabs
 
+# These functions were placed outside the class because if they were inside, the whole class
+# would have been copied for each processor
 
 
 def meanshift_cluster(ms_sp_table):
-        """
+    """
         Extract clusters from annotation using the mean shift algorithm
         :param ms_sp_table: hmmer hits table for each species/chromosome
         :return: annotated hmmer table
         """
-        # Set variables
-        sp_mean_shift = ms_sp_table['species'].values[0]
-        chrom_mean_shift = ms_sp_table['chromosome'].values[0]
-        proteome = cgp.all_genes.loc[(cgp.all_genes['species'] == sp_mean_shift) &
-                                     (cgp.all_genes['chromosome'] == chrom_mean_shift)]
-        # If there is only one gene, set the cluster to zero -> single-copy gene in the chromosome
-        if len(ms_sp_table) == 1:
-            ms_sp_table['cluster'] = 0
-            ms_sp_table['order'] = 0
-        else:
-            # Calculate the mean between neighboring genes in the chromosome
-            gene_distances = proteome['end'].values[1:] - proteome['start'][:-1]
-            mean_distance = np.mean(gene_distances)
-            # Calculate standard deviation of the distance between neighboring genes in the chromosome
-            sd_distance = np.std(gene_distances)
-            # The band_width in MeanShift is set to the mean intergenic distance plus its standard deviation
-            # This is more or less the minumum distance between "true" neighboring members of a cluster
-            band_width = mean_distance + sd_distance
-            # Since MeanShift works on 2D data, a 'y' axis was generated using zeroes
-            gene_starts = np.array([(x, y) for x, y in zip(ms_sp_table.start.values.astype(int),
-                                                           np.zeros(len(ms_sp_table)))])
-            # Set the MeanShift
-            ms = MeanShift(bandwidth=band_width)
-            # Execute the MeanShift algorithm to the coordinates
-            ms.fit(gene_starts)
-            # The labels are the position of the members of each cluster in the coordinates array
-            labels = ms.labels_
-            labels_unique = np.unique(labels)
-            # Number of clusters
-            n_clusters = len(labels_unique)
-            # Start from cluster 1
-            cluster_number = 1
-            # Go through each cluster label
-            for k in range(n_clusters):
-                # Set a masking array with the elements that belong to each cluster
-                members = labels == k
-                # Assign members of the cluster to new array
-                proto_cluster = gene_starts[members, 0]
-                cluster = np.sort(proto_cluster)
-                # If there is more than one gene in the cluster
-                if len(proto_cluster) > 1:
-                    # Annotate name (<name of the family>-<chromosome>_consecutive number
-                    ms_sp_table.loc[ms_sp_table['start'].isin(cluster),
-                                 'cluster'] = "{}-{}_{}".format(cgp.name_family, chrom_mean_shift, cluster_number)
-                    # Annotate order of genes "from start of the chromosome, according to annotation
-                    ms_sp_table.loc[ms_sp_table['start'].isin(cluster),
-                                 'order'] = range(1, len(cluster) + 1)
-                    cluster_number += 1
-                else:
-                    # If there is only one gene in the "cluster", assign name and order to zero
-                    ms_sp_table.loc[ms_sp_table['start'].isin(cluster),
-                                 'cluster'] = 'na'
-                    ms_sp_table.loc[ms_sp_table['start'].isin(cluster),
-                                 'order'] = 'na'
-        # Return annotated table per species (useful for parallelization)
-        return ms_sp_table
+    # Set variables
+    sp_mean_shift = ms_sp_table['species'].values[0]
+    chrom_mean_shift = ms_sp_table['chromosome'].values[0]
+    proteome = cgp.all_genes.loc[(cgp.all_genes['species'] == sp_mean_shift) &
+                                 (cgp.all_genes['chromosome'] == chrom_mean_shift)]
+    # If there is only one gene, set the cluster to zero -> single-copy gene in the chromosome
+    if len(ms_sp_table) == 1:
+        ms_sp_table['cluster'] = 0
+        ms_sp_table['order'] = 0
+    else:
+        # Calculate the mean between neighboring genes in the chromosome
+        gene_distances = proteome['end'].values[1:] - proteome['start'][:-1]
+        mean_distance = np.mean(gene_distances)
+        # Calculate standard deviation of the distance between neighboring genes in the chromosome
+        sd_distance = np.std(gene_distances)
+        # The band_width in MeanShift is set to the mean intergenic distance plus its standard deviation
+        # This is more or less the minumum distance between "true" neighboring members of a cluster
+        band_width = mean_distance + sd_distance
+        # Since MeanShift works on 2D data, a 'y' axis was generated using zeroes
+        gene_starts = np.array([(x, y) for x, y in zip(ms_sp_table.start.values.astype(int),
+                                                       np.zeros(len(ms_sp_table)))])
+        # Set the MeanShift
+        ms = MeanShift(bandwidth=band_width)
+        # Execute the MeanShift algorithm to the coordinates
+        ms.fit(gene_starts)
+        # The labels are the position of the members of each cluster in the coordinates array
+        labels = ms.labels_
+        labels_unique = np.unique(labels)
+        # Number of clusters
+        n_clusters = len(labels_unique)
+        # Start from cluster 1
+        cluster_number = 1
+        # Go through each cluster label
+        for k in range(n_clusters):
+            # Set a masking array with the elements that belong to each cluster
+            members = labels == k
+            # Assign members of the cluster to new array
+            proto_cluster = gene_starts[members, 0]
+            cluster = np.sort(proto_cluster)
+            # If there is more than one gene in the cluster
+            if len(proto_cluster) > 1:
+                # Annotate name (<name of the family>-<chromosome>_consecutive number
+                ms_sp_table.loc[ms_sp_table['start'].isin(cluster),
+                                'cluster'] = "{}-{}_{}".format(cgp.name_family, chrom_mean_shift, cluster_number)
+                # Annotate order of genes "from start of the chromosome, according to annotation
+                ms_sp_table.loc[ms_sp_table['start'].isin(cluster),
+                                'order'] = range(1, len(cluster) + 1)
+                cluster_number += 1
+            else:
+                # If there is only one gene in the "cluster", assign name and order to zero
+                ms_sp_table.loc[ms_sp_table['start'].isin(cluster),
+                                'cluster'] = 'na'
+                ms_sp_table.loc[ms_sp_table['start'].isin(cluster),
+                                'order'] = 'na'
+    # Return annotated table per species (useful for parallelization)
+    return ms_sp_table
 
 
-def gene_numbers(sp_table, all_genes):
+def gene_numbers(sp_table, all_genes_tab):
     """
     Count the number of paralogs, total number of genes and proportion of paralogs
     for each cluster
-    :param all_genes: complete gene annotation
+    :param all_genes_tab: complete gene annotation
     :param sp_table: blast table
     :return: annotated numbers table
     """
@@ -436,10 +466,10 @@ def gene_numbers(sp_table, all_genes):
         start = sp_table['start'].min()
         end = sp_table['end'].max()
         # Count the genes in that chromosomal region
-        total_genes = len(all_genes.loc[(all_genes['species'] == sp_numbers) &
-                                        (all_genes['chromosome'] == chromosome) &
-                                        (all_genes['start'] >= start) &
-                                        (all_genes['end'] <= end)])
+        total_genes = len(all_genes_tab.loc[(all_genes_tab['species'] == sp_numbers) &
+                                            (all_genes_tab['chromosome'] == chromosome) &
+                                            (all_genes_tab['start'] >= start) &
+                                            (all_genes_tab['end'] <= end)])
         # Calculate proportion of paralogs
         proportion_paralogs = paralog_genes / total_genes
         # Return the results per cluster (useful for parallelization
@@ -480,82 +510,84 @@ def grab_paralogs(acc_list, paralogs):
     return paralogs_max
 
 
-def blast_sampling(pre_cluster_table, gw, db, name_family, blast_samples, genomes, all_genes):
-        sp = pre_cluster_table.loc[:, 'species'].values[0]
-        # Load blast hits with queries from the species
-        sp_paralogs = json.loads(open("{}/blasts/{}.json".format(db, sp)).read())
-        cluster = pre_cluster_table.loc[:, 'cluster'].values[0]
-        cluster_length = abs(pre_cluster_table.loc[:, 'end'].values[0] - pre_cluster_table.loc[:, 'start'].values[0])
-        # Set output directory depending of the type of sampling
+def blast_sampling(pre_cluster_table, gw, db, name_family, blast_samples, genomes, all_genes_blast):
+    sp = pre_cluster_table.loc[:, 'species'].values[0]
+    # Load blast hits with queries from the species
+    sp_paralogs = json.loads(open("{}/blasts/{}.json".format(db, sp)).read())
+    cluster = pre_cluster_table.loc[:, 'cluster'].values[0]
+    cluster_length = abs(pre_cluster_table.loc[:, 'end'].values[0] - pre_cluster_table.loc[:, 'start'].values[0])
+    # Set output directory depending of the type of sampling
+    if gw:
+        root_folder = '{}/blast_samples_gw'.format(name_family)
+        msg = 'G'
+        col_name = 'perc95_gw'
+    else:
+        root_folder = '{}/blast_samples'.format(name_family)
+        msg = 'C'
+        col_name = 'perc95_chrom'
+    file_name = "{}/{}_{}".format(root_folder, sp.replace(' ', '_'), cluster)
+    sample_coords_file = open("{}/{}_{}.coords".format(root_folder, sp.replace(' ', '_'), cluster), 'w')
+    # with open(file_name, 'w') as seqO:
+    sample_coords = []
+    max_paras_list = []
+    for i in range(1, blast_samples + 1):
         if gw:
-            root_folder = '{}/blast_samples_gw'.format(name_family)
-            msg = 'G'
-            col_name = 'perc95_gw'
+            chromosome = np.random.choice(cgp.genomes.loc[genomes.sp == sp, 'chromosome'].values)
         else:
-            root_folder = '{}/blast_samples'.format(name_family)
-            msg = 'C'
-            col_name = 'perc95_chrom'
-        file_name = "{}/{}_{}".format(root_folder, sp.replace(' ', '_'), cluster)
-        sample_coords_file = open("{}/{}_{}.coords".format(root_folder, sp.replace(' ', '_'), cluster), 'w')
-        # with open(file_name, 'w') as seqO:
-        sample_coords = []
-        max_paras_list = []
-        for i in range(1, blast_samples + 1):
-            if gw:
-                chromosome = np.random.choice(cgp.genomes.loc[genomes.sp == sp, 'chromosome'].values)
-            else:
-                chromosome = pre_cluster_table.loc[:, 'chromosome'].values[0]
+            chromosome = pre_cluster_table.loc[:, 'chromosome'].values[0]
 
-            chr_len = genomes.loc[(genomes.sp == sp) &
-                                  (genomes.chromosome == chromosome), 'length'].values[0]
-            # Set sample coordinates
-            random_start = np.random.randint(1, chr_len)
-            random_end = random_start + cluster_length
+        chr_len = genomes.loc[(genomes.sp == sp) &
+                              (genomes.chromosome == chromosome), 'length'].values[0]
+        # Set sample coordinates
+        random_start = np.random.randint(1, chr_len)
+        random_end = random_start + cluster_length
 
-            # Save sample coordinates in log file
-            sample_coords_file.write(','.join([str(i), str(sp), str(chromosome),
-                                               str(random_start), str(random_end)]) + '\n')
-            # Get genes in sample regions
-            proteome_slice = all_genes.loc[(all_genes.species == sp) &
-                                                (all_genes.chromosome == chromosome) &
-                                                (all_genes.start >= random_start) &
-                                                (all_genes.end <= random_end)].index.values
-            if len(proteome_slice) > 0:
-                chrom_paralogs = sp_paralogs[chromosome]
-                max_paralogs = grab_paralogs(list(proteome_slice), chrom_paralogs)
-                current_sample = [i, sp, chromosome, random_start, random_end, max_paralogs]
-                sample_coords.append(current_sample)
-            else:
-                max_paralogs = 0
-            max_paras_list.append(max_paralogs)
-        paralogs_log = open(file_name + ".samples", 'w')
-        paralogs_data = ','.join([str(x) for x in max_paras_list])
-        paralogs_log.write("{},{},{}\n".format(sp, cluster, paralogs_data))
-        paralogs_log.close()
-        try:
-            original_paralogs = pre_cluster_table['paralogs'].values[0]
-        except KeyError:
-            print("Error in :{}, {}".format(sp, pre_cluster_table.cluster))
-            return pre_cluster_table
-        with_perc = pre_cluster_table.loc[:]
-        with_perc[col_name] = np.percentile(max_paras_list, 95)
-        query_perc = (sp, cluster, np.percentile(max_paras_list, 95))
-        status_msg = "{:<25} {:<9} {:<25} {} ({})".format(sp, original_paralogs, cluster, msg, round(query_perc[2], 3))
-        if gw and original_paralogs >= query_perc[2]:
-            print(colored(status_msg, 'green'))
-        elif gw and original_paralogs < query_perc[2]:
-            print(colored(status_msg, 'red'))
+        # Save sample coordinates in log file
+        sample_coords_file.write(','.join([str(i), str(sp), str(chromosome),
+                                           str(random_start), str(random_end)]) + '\n')
+        # Get genes in sample regions
+        proteome_slice = all_genes_blast.loc[(all_genes_blast.species == sp) &
+                                             (all_genes_blast.chromosome == chromosome) &
+                                             (all_genes_blast.start >= random_start) &
+                                             (all_genes_blast.end <= random_end)].index.values
+        if len(proteome_slice) > 0:
+            chrom_paralogs = sp_paralogs[chromosome]
+            max_paralogs = grab_paralogs(list(proteome_slice), chrom_paralogs)
+            current_sample = [i, sp, chromosome, random_start, random_end, max_paralogs]
+            sample_coords.append(current_sample)
         else:
-            print(status_msg)
-        return query_perc
+            max_paralogs = 0
+        max_paras_list.append(max_paralogs)
+    paralogs_log = open(file_name + ".samples", 'w')
+    paralogs_data = ','.join([str(x) for x in max_paras_list])
+    paralogs_log.write("{},{},{}\n".format(sp, cluster, paralogs_data))
+    paralogs_log.close()
+    try:
+        original_paralogs = pre_cluster_table['paralogs'].values[0]
+    except KeyError:
+        print("Error in :{}, {}".format(sp, pre_cluster_table.cluster))
+        return pre_cluster_table
+    with_perc = pre_cluster_table.loc[:]
+    with_perc[col_name] = np.percentile(max_paras_list, 95)
+    query_perc = (sp, cluster, np.percentile(max_paras_list, 95))
+    status_msg = "{:<25} {:<9} {:<25} {} ({})".format(sp, original_paralogs, cluster, msg, round(query_perc[2], 3))
+    if gw and original_paralogs >= query_perc[2]:
+        print(colored(status_msg, 'green'))
+    elif gw and original_paralogs < query_perc[2]:
+        print(colored(status_msg, 'red'))
+    else:
+        print(status_msg)
+    return query_perc
+
+
 ###
 if __name__ == "__main__":
     cgp = CGP(name_family=args.name_family, out_dir=args.out_dir, db=args.db, ref_sequence=args.ref_seq,
-              blast_samples=args.blast_samples, cpus=args.cpu, sp=args.sp)
+              blast_samples=args.blast_samples, sp=args.sp)
     cgp.check_arguments()
     cgp.remove_if_unfinished()
-    assert not  os.path.exists("{}/{}".format(cgp.out_dir, cgp.name_family)),\
-    "Results for {} are already saved in {}".format(cgp.name_family, cgp.out_dir)
+    assert not os.path.exists("{}/{}".format(cgp.out_dir, cgp.name_family)), \
+        "Results for {} are already saved in {}".format(cgp.name_family, cgp.out_dir)
     # Load tables
     cgp.init_tables()
     # Set selected species
@@ -565,63 +597,51 @@ if __name__ == "__main__":
     # Create directory structure
     cgp.create_folders()
     # Run blast
-    cgp.blast_exe(cgp.cpus, cgp.ref_sequence, cgp.all_genes_fasta, cgp.blast_out)
+    cgp.blast_exe(args.cpu, cgp.ref_sequence, cgp.all_genes_fasta, cgp.blast_out)
     # Parse blast result
     cgp.family_blast = cgp.blast_parse(cgp.blast_out, acc_col=2, tab=True,
                                        sp_list=cgp.sp, for_dict=False)
     # Run MeanShift in parallel
     family_blast = copy(cgp.family_blast)
-    with futures.ProcessPoolExecutor(cgp.cpus) as p:
+    with futures.ProcessPoolExecutor(args.cpu) as p:
         ms_result = p.map(meanshift_cluster, cgp.sp_loop(family_blast, ["species", "chromosome"]))
     cgp.ms_result = list(ms_result)
-    # p.close()
     # Get number of paralogs, genes and proportions of paralogs per cluster
-    # p = Pool(cgp.cpus)
     only_clusters_rows = copy(cgp.only_clusters_rows)
     all_genes = copy(cgp.all_genes)
-    partial_gene_numbers = partial(gene_numbers, all_genes=all_genes)
-    with futures.ProcessPoolExecutor(cgp.cpus) as p:
+    partial_gene_numbers = partial(gene_numbers, all_genes_tab=all_genes)
+
+    with futures.ProcessPoolExecutor(args.cpu) as p:
         family_numbers_list = p.map(partial_gene_numbers, cgp.only_clusters_rows)
     cgp.family_numbers_list = list(family_numbers_list)
-    # p.close()
 
     # Run chromosome-specific and genome wide statistical assessment of cluster density
 
     one_arg_blast_samples = partial(blast_sampling, gw=False, db=cgp.db, name_family=cgp.name_family,
-                                    blast_samples=cgp.blast_samples, genomes=cgp.genomes, all_genes=cgp.all_genes)
+                                    blast_samples=cgp.blast_samples, genomes=cgp.genomes, all_genes_blast=cgp.all_genes)
     one_arg_blast_samples_gw = partial(blast_sampling, gw=True, db=cgp.db, name_family=cgp.name_family,
                                        blast_samples=cgp.blast_samples, genomes=cgp.genomes,
-                                       all_genes=cgp.all_genes)
+                                       all_genes_blast=cgp.all_genes)
     # Run the sampling algorithm
     print("Analyzing {} proto-cluster(s)".format(len(cgp.cluster_rows)))
     print("{:<25} {:<9} {:<25} {}".format('species', 'paralogs', 'proto-cluster', 'sample (95P)'))
 
     cluster_rows = copy(cgp.cluster_rows)
-    # p = Pool(cgp.cpus)
-    with futures.ProcessPoolExecutor(cgp.cpus) as p:
+    with futures.ProcessPoolExecutor(args.cpu) as p:
         chrom_wide = p.map(one_arg_blast_samples, cluster_rows)
         genome_wide = p.map(one_arg_blast_samples_gw, cluster_rows)
     cgp.chrom_wide, cgp.genome_wide = list(chrom_wide), list(genome_wide)
-    # p.close()
 
     new_tab = cgp.add_sample_cols(cgp.family_numbers)
     cgp.add_samples(new_tab)
     cgp.delete_intermediates()
 
-if False:
-
-    pd.options.mode.chained_assignment = None
-
-else:
-    print("Not enough blast hits to perform the analysis")
-    # End
-    # Delete intermediate files
-    # cgp.delete_intermediates(cgp.out_dir)
+    # Finish
     print("DONE")
     run_time = time() - init_time
     seconds = int(run_time % 60)
     minutes = int(run_time / 60)
     hours = int(minutes / 60)
-    minutes = minutes - hours * 60
+    minutes -= hours * 60
     print("Results for {} were saved in {}".format(cgp.name_family, cgp.out_dir))
     print("Run time: {}:{}:{}\n".format(str(hours).zfill(2), str(minutes).zfill(2), str(seconds).zfill(2)))
