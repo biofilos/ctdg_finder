@@ -238,18 +238,19 @@ class CGP:
                 filtered_blast.loc[:, 'subject'] = filtered_blast.query_acc + '|' + filtered_blast.subject
                 # Extract table from subject names
                 fields = (i for i in map(lambda x: x.split('|'), filtered_blast.subject.values))
-                temp_fields = open("{}._fields.temp".format(out_file),"w")
+                temp_fields = open("{}._fields.temp".format(out_file), "w")
                 temp_fields.write("query,species,chromosome,prot_acc,symbol,start,end,strand\n")
                 for line in fields:
                     temp_fields.write(','.join(line)+'\n')
                 temp_fields.close()
                 del filtered_blast
                 # Set table
-                sub_table = pd.DataFrame(list(fields), columns=['query', 'species', 'chromosome', 'prot_acc',
-                                                                'symbol', 'start', 'end', 'strand'])
+                sub_table = pd.read_csv("{}._fields.temp".format(out_file))
+                os.remove("{}._fields.temp".format(out_file))
+                # sub_table = pd.DataFrame(list(fields), columns=['query', 'species', 'chromosome', 'prot_acc',
+                #                                                 'symbol', 'start', 'end', 'strand'])
                 # In case there are spaces in species names, remove them
                 sub_table['species'] = sub_table['species'].map(lambda x: str(x.replace(" ", "_")))
-                # sub_table['species'] = sub_table['species'].apply(lambda x: str(x).replace('_', ' '))
                 # Only consider hits from selected species
                 if len(sp_list) > 0:
                     sub_table = sub_table.loc[sub_table['species'].isin(sp_list)]
