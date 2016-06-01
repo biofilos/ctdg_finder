@@ -7,6 +7,7 @@ import numpy as np
 import time
 import sys
 import os
+from glob import glob
 #Load gene table
 gene_table = sys.argv[1]
 out_dir = sys.argv[2]
@@ -21,6 +22,16 @@ big_annotation['chromosome'] = big_annotation['chromosome'].astype(str)
 big_annotation['strand'] = big_annotation['strand'].astype(int)
 big_annotation.set_index(['species','chromosome'], inplace=True)
 chunk_size = int(sys.argv[3])
+
+# Skip chromosmes that are already annotated
+sp_chrom_done = []
+for js in glob(out_dir+"/*.json"):
+    sp_chrom = js.split('/')[-1].replace('_fx.json','')
+    sp = '_'.join(sp_chrom.split('_')[:-1])
+    chrom = sp_chrom.split('_')[-1]
+    sp_chrom_done.append((sp,chrom))
+big_annotation = big_annotation.loc[~(big_annotation.index.isin(sp_chrom_done))]
+
 for sp, chrom in set(big_annotation.index):
     out_file = "{}/{}_{}_fx.json".format(out_dir, sp, chrom)
     print("{}: {}".format(sp, chrom))
