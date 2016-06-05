@@ -15,7 +15,7 @@ def blast_filter(series):
     return ratio
 
 
-def exe(cpus, ref, subject, out_file):
+def exe(cpus, ref, subject, out_file, evalue=0.0001):
     """
     Blast a reference sequence againsts all the sequences in a blast database
     :param ref: Query
@@ -27,9 +27,9 @@ def exe(cpus, ref, subject, out_file):
     cmd = "blastp -query {0} " \
           "-db {1} " \
           "-out {2} " \
-          "-evalue 0.0001 " \
+          "-evalue {3} " \
           "-outfmt '6 qseqid sseqid qlen slen qstart qend sstart send length gaps gapopen evalue bitscore' " \
-          "-num_threads {3}".format(ref, subject, out_file, cpus)
+          "-num_threads {4}".format(ref, subject, out_file, evalue, cpus)
     # Run blast
     os.system(cmd)
 
@@ -62,8 +62,8 @@ def parse(out_file, acc_col, tab=True, sp_list=[], for_dict=False):
                 new_query_name = result_tab['query'].values[0]
                 result_tab['query'] = new_query_name
 
-        # Filter out hits if they are less than half (or greater
-        #  than two times) the query length
+        # Filter out hits if they are less than one third (or greater
+        #  than three times) the query length
         result_tab['len_ratio'] = result_tab.apply(blast_filter, axis=1)
         result_tab.sort_values(by=['query', 'subject', 'len_ratio'], inplace=True, ascending=True)
         result_tab.drop_duplicates(subset=['query', 'subject'], keep='last', inplace=True)

@@ -38,9 +38,12 @@ for sp, chrom in set(gene_table.set_index(['species','chromosome']).index):
     print("{}\t{}".format(sp,chrom))
     # Get dataset for each species
     sp_code = sp[0]+sp.split("_")[-1]
+    selected_dataset = ''
     for sp_dataset in datasets:
         if sp_code in sp_dataset.lower():
+            selected_dataset = sp_dataset
             break
+    assert selected_dataset != '', 'Dataset {} was not found'.format(sp_code)
     chrom_table = gene_table.loc[(gene_table['species']==sp)&
                                  (gene_table['chromosome']==chrom)]
     ids = chrom_table.index
@@ -60,6 +63,7 @@ for sp, chrom in set(gene_table.set_index(['species','chromosome']).index):
         except:
             print(result.text)
             print(chunk)
+        tab_result = tab_result.loc[:,['seq','acc']]
         tab_result.columns = ['seq','acc']
         #tab_result.set_index('acc',inplace=True)
         tab_result = tab_result.loc[tab_result['seq'] != 'Sequence unavailable']
