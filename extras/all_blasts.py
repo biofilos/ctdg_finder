@@ -15,11 +15,11 @@ out_dir = all_seqs.replace(all_seqs.split('/')[-1],'blasts')
 cpus = sys.argv[2]
 
 # Generate species-specific proteomes
-for gene in SeqIO.parse(all_seqs,'fasta'):
-    sp_name = gene.name.split("|")[0]
-    fileO = open("{}/{}.fasta".format(out_dir,sp_name),'a')
-    SeqIO.write(gene,fileO,'fasta')
-    fileO.close()
+#for gene in SeqIO.parse(all_seqs,'fasta'):
+#    sp_name = gene.name.split("|")[0]
+#    fileO = open("{}/{}.fasta".format(out_dir,sp_name),'a')
+#    SeqIO.write(gene,fileO,'fasta')
+#    fileO.close()
 
 # Run Blast step for each proteome
 for input_file in glob("{}/*.fasta".format(out_dir)):

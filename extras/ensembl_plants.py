@@ -174,7 +174,7 @@ def download_seq(ensembls):
         start = int(seq_record['start'])
         end = int(seq_record['end'])
         strand = int(seq_record['strand'])
-        symbol = seq_record['external_name']
+        symbol = seq_record['external_name'].replace(' ','--')
         if symbol is np.nan:
             symbol = gene
         # Check if the gene has already been downloaded
@@ -200,7 +200,7 @@ def download_seq(ensembls):
 
         all_seqs.write(">{}\n{}\n".format(seq_name, longest['seq']))
         # Write in file every 10 genes
-        #if timer_to_flush == 200:
+        #if timer_to_flush == 200:l_scaffold_0006_259
         #    all_seqs.flush()
         #    timer_to_flush = 0
         print(sp, symbol)

@@ -7,6 +7,7 @@ import numpy as np
 import time
 import sys
 import os
+from glob import glob
 #Load gene table
 gene_table = sys.argv[1]
 out_dir = sys.argv[2]
@@ -31,7 +32,10 @@ for js in glob(out_dir+"/*.json"):
     sp_chrom_done.append((sp,chrom))
 big_annotation = big_annotation.loc[~(big_annotation.index.isin(sp_chrom_done))]
 
+<<<<<<< HEAD
 
+=======
+>>>>>>> ef1974a37dcafc4a63582933914aab2c3b290900
 for sp, chrom in set(big_annotation.index):
     out_file = "{}/{}_{}_fx.json".format(out_dir, sp, chrom)
     print("{}: {}".format(sp, chrom))
