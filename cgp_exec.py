@@ -231,9 +231,9 @@ class CGP:
             # If more than one query was used, rename all the queries with the same name
             if tab:
                 try:
-                    filtered_blast['query_acc'] = filtered_blast['query'].map(lambda x: x.split("|")[acc_col])
+                    filtered_blast.loc[:, 'query_acc'] = filtered_blast['query'].map(lambda x: x.split("|")[acc_col])
                 except IndexError:
-                    filtered_blast['query_acc'] = filtered_blast['query'].map(lambda x: x.split("|")[0])
+                    filtered_blast.loc[:, 'query_acc'] = filtered_blast['query'].map(lambda x: x.split("|")[0])
                 # Attach the query name to the subject, to include it as a column
                 filtered_blast.loc[:, 'subject'] = filtered_blast.query_acc + '|' + filtered_blast.subject
                 # Extract table from subject names
