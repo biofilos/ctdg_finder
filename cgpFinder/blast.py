@@ -65,8 +65,8 @@ def parse(out_file, acc_col, tab=True, sp_list=[], for_dict=False):
                 new_query_name = result_tab['query'].values[0]
                 result_tab['query'] = new_query_name
 
-        # Filter out hits if they are less than half (or greater
-        #  than two times) the query length
+        # Filter out hits if they are less than one third (or greater
+        #  than three times) the query length
         result_tab['len_ratio'] = result_tab.apply(blast_filter, axis=1)
         result_tab.sort_values(by=['query', 'subject', 'len_ratio'], inplace=True, ascending=True)
         result_tab.drop_duplicates(subset=['query', 'subject'], keep='last', inplace=True)

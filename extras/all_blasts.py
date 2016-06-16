@@ -23,10 +23,11 @@ cpus = sys.argv[2]
 
 # Run Blast step for each proteome
 for input_file in glob("{}/*.fasta".format(out_dir)):
+    print(input_file)
     output_file = input_file.replace('fasta', 'blast')
     sp = input_file.replace('.fasta', '').split('/')[-1]
     
-    cgp.blast.exe(cpus, input_file, all_seqs, output_file)
+    cgp.blast.exe(cpus, input_file, all_seqs, output_file, 1)
     
     sub_table = cgp.blast.parse(output_file, 2, True, [sp], True)
 
