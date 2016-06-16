@@ -11,7 +11,7 @@ is that for the sampling process, only the blast hits for the same species
 are needed
 '''
 all_seqs = sys.argv[1]
-out_dir = all_seqs.replace(all_seqs.split('/')[-1],'blasts')
+out_dir = all_seqs.replace(all_seqs.split('/')[-1], 'blasts')
 cpus = sys.argv[2]
 
 # Generate species-specific proteomes

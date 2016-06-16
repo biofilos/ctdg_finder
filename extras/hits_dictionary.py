@@ -35,10 +35,9 @@ for table in glob('{}/*.blast_out'.format(blast_folder)):
         # Subset the blast with queries and subjects from that chromosome
         chrom_table = sp_table.loc[(sp_table['query'].isin(queries)) &
                                    (sp_table['chromosome'] == chrom)]
-
+        chrom_table['chromosome'] = chrom_table['chromosome'].astype(str)
         for query in queries:
             table_dict[chrom][query] = list(chrom_table.loc[chrom_table['query'] == query, 'prot_acc'].values)
-
 #     # Save result to JSON file
     with open(table.replace('.blast_out', '.json'), 'w') as json_out:
         json_str = json.dumps(table_dict)

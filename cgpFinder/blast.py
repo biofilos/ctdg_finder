@@ -1,6 +1,7 @@
 import numpy as np
 import os
 import pandas as pd
+from pandas.computation.eval import eval
 
 
 def blast_filter(series):
@@ -15,21 +16,23 @@ def blast_filter(series):
     return ratio
 
 
-def exe(cpus, ref, subject, out_file):
+def exe(cpus, ref, subject, out_file, evalue=0.0001):
     """
     Blast a reference sequence againsts all the sequences in a blast database
+    :param evalue: E-Value threshold in Blast
+    :param subject: Blast database
+    :param cpus: Number of CPUs to be used by Blast
     :param ref: Query
     :param out_file: Output for blast
-    :param acc_col: Field position in the sequence name where the accession number is located
     :return: pd.DataFrame with filtered sequences
     """
     # Set blast command
     cmd = "blastp -query {0} " \
           "-db {1} " \
           "-out {2} " \
-          "-evalue 0.0001 " \
+          "-evalue {3} " \
           "-outfmt '6 qseqid sseqid qlen slen qstart qend sstart send length gaps gapopen evalue bitscore' " \
-          "-num_threads {3}".format(ref, subject, out_file, cpus)
+          "-num_threads {4}".format(ref, subject, out_file, evalue, cpus)
     # Run blast
     os.system(cmd)
 
