@@ -149,21 +149,21 @@ else:
 
             # Partly fill required arguments on these functions, so that map() can be run only
             # with the table list
-            one_arg_blast_samples = partial(cgp.blast_sampling, gw=False, samples=blast_samples_size, db=args.db)
+            # one_arg_blast_samples = partial(cgp.blast_sampling, gw=False, samples=blast_samples_size, db=args.db)
             one_arg_blast_samples_gw = partial(cgp.blast_sampling, gw=True, samples=blast_samples_size, db=args.db)
             # Run the sampling algorithm
             print("Analyzing {} proto-cluster(s)".format(len(cluster_rows)))
-            print("{:<25} {:<9} {:<25} {}".format('species','paralogs','proto-cluster','sample (95P)'))
+            print("{:<25} {:<9} {:<25} {}".format('species', 'paralogs', 'proto-cluster', 'sample (95P)'))
             with futures.ProcessPoolExecutor(cpus) as pool:
                 # Only picking regions from the same chromosome
-                chrom_wide = pool.map(one_arg_blast_samples, cluster_rows)
+                # chrom_wide = pool.map(one_arg_blast_samples, cluster_rows)
                 genome_wide = pool.map(one_arg_blast_samples_gw, cluster_rows)
             # chrom_wide = map(one_arg_blast_samples, cluster_rows)
             # genome_wide = map(one_arg_blast_samples_gw, cluster_rows)
-            for chrom_data, genome_data in zip(chrom_wide, genome_wide):
-                family_numbers.loc[(family_numbers.species == chrom_data[0]) &
-                                   (family_numbers.cluster == chrom_data[1]), 'perc95_chrom'] = chrom_data[2]
-
+            # for chrom_data, genome_data in zip(chrom_wide, genome_wide):
+            #     family_numbers.loc[(family_numbers.species == chrom_data[0]) &
+            #                        (family_numbers.cluster == chrom_data[1]), 'perc95_chrom'] = chrom_data[2]
+            for genome_data in genome_wide:
                 family_numbers.loc[(family_numbers.species == genome_data[0]) &
                                    (family_numbers.cluster == genome_data[1]), 'perc95_gw'] = genome_data[2]
             # Identify clusters that didn't make it through the threshold
@@ -186,17 +186,19 @@ else:
         family_blast.to_csv("{0}/report/{0}_genes.csv".format(name_family))
         # Concatenate sample files in one table per set of samples
 
-        chrom_files = glob("{}/blast_samples/*.samples".format(name_family))
-        if len(chrom_files) > 0:
-            chrom_tabs = pd.concat([pd.read_table(x, header=None, sep=',') for x in chrom_files])
+        genome_files = glob("{}/blast_samples_gw/*.samples".format(name_family))
+        if len(genome_files) > 0:
+            # chrom_tabs = pd.concat([pd.read_table(x, header=None, sep=',') for x in chrom_files])
             gw_files = glob("{}/blast_samples_gw/*.samples".format(name_family))
             gw_tabs = pd.concat([pd.read_table(x, header=None, sep=',') for x in gw_files])
-            samples_summary = pd.concat([cgp.set_sample_tables(chrom_tabs, 'chromosome'),
-                                         cgp.set_sample_tables(gw_tabs, 'genome_wide')])
+            # samples_summary = pd.concat([cgp.set_sample_tables(chrom_tabs, 'chromosome'),
+            #                              cgp.set_sample_tables(gw_tabs, 'genome_wide')])
+            samples_summary = cgp.set_sample_tables(gw_tabs, 'genome_wide')
             # save samples to report dir
             samples_summary.to_csv("{0}/report/{0}.samples".format(name_family))
             # Remove samples per sp
-            _ = [os.remove(x) for x in chrom_files + gw_files]
+            # _ = [os.remove(x) for x in chrom_files + gw_files]
+            _ = [os.remove(x) for x in gw_files]
         else:
             print("No clusters for {}".format(name_family))
         # Sequence analysis
