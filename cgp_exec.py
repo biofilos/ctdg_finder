@@ -201,12 +201,6 @@ else:
             _ = [os.remove(x) for x in gw_files]
         else:
             print("No clusters for {}".format(name_family))
-        # Sequence analysis
-#        if args.seq_analysis:
-#            print("Downloading sequences")
-#            cgp.phylo.download_genes(family_blast)
-#            print("Aligning")
-#            cgp.phylo.align()
     else:
         print("Not enough blast hits({}) to perform the analysis".format(len(family_blast)))
     # End
@@ -217,6 +211,6 @@ else:
     seconds = int(run_time % 60)
     minutes = int(run_time / 60)
     hours = int(minutes / 60)
-    minutes = minutes - hours * 60
+    minutes -= hours * 60
     print("Results for {} were saved in {}".format(name_family, out_dir))
     print("Run time: {}:{}:{}\n".format(str(hours).zfill(2), str(minutes).zfill(2), str(seconds).zfill(2)))
