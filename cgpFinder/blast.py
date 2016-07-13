@@ -82,12 +82,14 @@ def parse(out_file, acc_col, tab=True, sp_list=[], for_dict=False):
                 filtered_blast['query_acc'] = filtered_blast['query'].map(lambda x: x.split("|")[0])
             # Attach the query name to the subject, to include it as a column
             filtered_blast.loc[:, 'subject'] = filtered_blast.query_acc + '|' + filtered_blast.subject
+            if for_dict:
+                filtered_blast.loc[:, 'subject'] = filtered_blast.query_acc + '|' + filtered_blast['eval']
             # Extract table from subject names
             fields = map(lambda x: x.split('|'), filtered_blast.subject.values)
 
             # Set table
             sub_table = pd.DataFrame(list(fields), columns=['query', 'species', 'chromosome', 'prot_acc',
-                                                            'symbol', 'start', 'end', 'strand'])
+                                                            'symbol', 'start', 'end', 'strand', 'evlaue'])
 
             # sub_table['species'] = sub_table['species'].apply(lambda x: str(x).replace('_', ' '))
             # Only consider hits from selected species
