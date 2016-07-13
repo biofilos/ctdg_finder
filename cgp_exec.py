@@ -45,7 +45,11 @@ parser.add_argument("--cpu", "-c",
 parser.add_argument("--db", "-d",
                     action="store",
                     help="Directory with gene annotation and blast database")
-
+parser.add_argument("--evalue", "-e",
+                    action="store",
+                    type=float,
+                    default=1e-3,
+                    help="E-value threshold for blast steps (default: 1e-3)")
 # Check if blast is installed. Since this is not required for defining the analysis, it is executed before
 # the class definition
 blast_path = shutil.which('blastp')
@@ -57,7 +61,8 @@ args = parser.parse_args()
 
 # Define class CGP
 class CGP:
-    def __init__(self, name_family, out_dir, db, ref_sequence, blast_samples, sp):
+    def __init__(self, name_family, evalue, out_dir, db, ref_sequence, blast_samples, sp):
+        self.evalue = evalue
         self.sp = sp
         self.blast_samples = blast_samples
         self.ref_sequence = ref_sequence
@@ -73,7 +78,7 @@ class CGP:
         self.blast_rows = None
         self.ms_result = None
         self.family_numbers_list = None
-        self.chrom_wide = []
+        # self.chrom_wide = []
         self.genome_wide = []
 
     def check_arguments(self):
@@ -165,8 +170,8 @@ class CGP:
         ratio = min(series[cols]) / max(series[cols])
         return ratio
 
-    @staticmethod
-    def blast_exe(cpus, ref, subject, out_file):
+    # @staticmethod
+    def blast_exe(self, cpus, ref, subject, out_file):
         """
         Blast a reference sequence againsts all the sequences in a blast database
         :param subject: blast database
@@ -179,10 +184,11 @@ class CGP:
         cmd = "blastp -query {0} " \
               "-db {1} " \
               "-out {2} " \
-              "-evalue 0.0001 " \
+              "-evalue {3} " \
               "-outfmt '6 qseqid sseqid qlen slen qstart qend sstart send length gaps gapopen evalue bitscore' " \
-              "-num_threads {3}".format(ref, subject, out_file, cpus)
+              "-num_threads {4}".format(ref, subject, out_file, self.evalue, cpus)
         # Run blast
+        print("Running blast with E-value = {}".format(self.evalue))
         os.system(cmd)
 
     def blast_parse(self, out_file, acc_col, sp_list, tab=True, for_dict=False):
@@ -320,9 +326,10 @@ class CGP:
         return self.sp_loop(self.family_numbers, ['species', 'chromosome', 'cluster'])
 
     def add_sample_cols(self, table):
-        for chrom_data, genome_data in zip(self.chrom_wide, self.genome_wide):
-            table.loc[(table.species == chrom_data[0]) &
-                      (table.cluster == chrom_data[1]), 'perc95_chrom'] = chrom_data[2]
+        # for chrom_data, genome_data in zip(self.chrom_wide, self.genome_wide):
+        for genome_data in self.genome_wide:
+                # table.loc[(table.species == chrom_data[0]) &
+                #       (table.cluster == chrom_data[1]), 'perc95_chrom'] = chrom_data[2]
 
             table.loc[(table.species == genome_data[0]) &
                       (table.cluster == genome_data[1]), 'perc95_gw'] = genome_data[2]
@@ -340,6 +347,7 @@ class CGP:
         ms_compiled.loc[ms_compiled['prot_acc'].isin(accs_for_deletion), ['cluster', 'order']] = 'na'
         ms_compiled.to_csv("{0}/report/{0}_genes.csv".format(self.name_family))
         new_numbers.loc[new_numbers['paralogs'] < new_numbers['perc95_gw'], 'cluster'] = 'na'
+        new_numbers.set_index("species", inplace=True)
 
         # # # Save cluster tables
         new_numbers.to_csv("{0}/report/{0}_numbers.csv".format(self.name_family))
@@ -482,14 +490,23 @@ def gene_numbers(sp_table, all_genes_tab):
         return None
 
 
-def grab_paralogs(acc_list, paralogs):
+def grab_paralogs(acc_list, paralogs, evalue):
     """
     Given a list of accession numbers, get the maximum number of paralogs between them
+    :param evalue: reference E-value
     :param acc_list: accession numbers list
     :param paralogs: Dictionary with parsed blast results for the chromosome being sampled
     :return: max number of paralogs
     """
     paralogs_list = []
+    # Retain only blast hits less than or equal to a given E-value
+    paralogs_evalue = {}
+    for acc in paralogs:
+        paralog_eval_list = []
+        for hit in paralogs[acc]:
+            if hit[1] <= evalue:
+                paralog_eval_list.append(hit[0])
+        paralogs_evalue[acc] = paralog_eval_list
     # paralogs = json.loads(open('{}/{}_{}.json'.format(blast_dir, sp.replace(' ', '_'), chrom)).read())
     # If there are no genes in the sample interval, return 0 paralogs
     if len(acc_list) == 0:
@@ -498,20 +515,19 @@ def grab_paralogs(acc_list, paralogs):
     elif type(acc_list) == list:
         for acc in acc_list:
             # If the accession is not in the query, it had no blast hits with any sequence
-            if acc in paralogs.keys():
-                paralogs_list.extend(list(set(paralogs[acc]).intersection(acc_list)))
+            if acc in paralogs_evalue.keys():
+                paralogs_list.extend(list(set(paralogs_evalue[acc]).intersection(acc_list)))
         # If more than zero paralogs were found
         if len(paralogs_list) > 0:
             paralogs_max = Counter(paralogs_list).most_common(1)[0][1]
         else:
             paralogs_max = 0
-            # print("second")
     else:
-        paralogs_max = Counter(paralogs[acc_list]).most_common(1)[0][1]
+        paralogs_max = Counter(paralogs_evalue[acc_list]).most_common(1)[0][1]
     return paralogs_max
 
 
-def blast_sampling(pre_cluster_table, gw, db, name_family, blast_samples, genomes, all_genes_blast):
+def blast_sampling(pre_cluster_table, gw, db, name_family, blast_samples, genomes, all_genes_blast, evalue):
     sp = pre_cluster_table.loc[:, 'species'].values[0]
     # Load blast hits with queries from the species
     sp_paralogs = json.loads(open("{}/blasts/{}.json".format(db, sp)).read())
@@ -553,7 +569,7 @@ def blast_sampling(pre_cluster_table, gw, db, name_family, blast_samples, genome
                                              (all_genes_blast.end <= random_end)].index.values
         if len(proteome_slice) > 0:
             chrom_paralogs = sp_paralogs[chromosome]
-            max_paralogs = grab_paralogs(list(proteome_slice), chrom_paralogs)
+            max_paralogs = grab_paralogs(list(proteome_slice), chrom_paralogs, evalue)
             current_sample = [i, sp, chromosome, random_start, random_end, max_paralogs]
             sample_coords.append(current_sample)
         else:
@@ -584,7 +600,7 @@ def blast_sampling(pre_cluster_table, gw, db, name_family, blast_samples, genome
 ###
 if __name__ == "__main__":
     cgp = CGP(name_family=args.name_family, out_dir=args.out_dir, db=args.db, ref_sequence=args.ref_seq,
-              blast_samples=args.blast_samples, sp=args.sp)
+              blast_samples=args.blast_samples, sp=args.sp, evalue=args.evalue)
     cgp.check_arguments()
     cgp.remove_if_unfinished()
     assert not os.path.exists("{}/{}".format(cgp.out_dir, cgp.name_family)), \
@@ -618,21 +634,21 @@ if __name__ == "__main__":
 
     # Run chromosome-specific and genome wide statistical assessment of cluster density
 
-    one_arg_blast_samples = partial(blast_sampling, gw=False, db=cgp.db, name_family=cgp.name_family,
-                                    blast_samples=cgp.blast_samples, genomes=cgp.genomes, all_genes_blast=cgp.all_genes)
+    # one_arg_blast_samples = partial(blast_sampling, gw=False, db=cgp.db, name_family=cgp.name_family,
+    #                                 blast_samples=cgp.blast_samples, genomes=cgp.genomes, all_genes_blast=cgp.all_genes)
     one_arg_blast_samples_gw = partial(blast_sampling, gw=True, db=cgp.db, name_family=cgp.name_family,
                                        blast_samples=cgp.blast_samples, genomes=cgp.genomes,
-                                       all_genes_blast=cgp.all_genes)
+                                       all_genes_blast=cgp.all_genes, evalue=cgp.evalue)
     # Run the sampling algorithm
     print("Analyzing {} proto-cluster(s)".format(len(cgp.cluster_rows)))
     print("{:<25} {:<9} {:<25} {}".format('species', 'paralogs', 'proto-cluster', 'sample (95P)'))
 
     cluster_rows = copy(cgp.cluster_rows)
     with futures.ProcessPoolExecutor(args.cpu) as p:
-        chrom_wide = p.map(one_arg_blast_samples, cluster_rows)
+        # chrom_wide = p.map(one_arg_blast_samples, cluster_rows)
         genome_wide = p.map(one_arg_blast_samples_gw, cluster_rows)
-    cgp.chrom_wide, cgp.genome_wide = list(chrom_wide), list(genome_wide)
-
+    # cgp.chrom_wide, cgp.genome_wide = list(chrom_wide), list(genome_wide)
+    cgp.genome_wide = list(genome_wide)
     new_tab = cgp.add_sample_cols(cgp.family_numbers)
     cgp.add_samples(new_tab)
     cgp.delete_intermediates()
