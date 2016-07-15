@@ -12,6 +12,7 @@ from time import time
 
 import numpy as np
 import pandas as pd
+from Bio import SeqIO
 from sklearn.cluster import MeanShift
 from termcolor import colored
 
@@ -151,7 +152,7 @@ class CGP:
         """
         if not os.path.exists(self.name_family):
             os.makedirs(self.name_family)
-            folders = ['blast_samples', 'blast_samples_gw', 'report']
+            folders = ['blast_samples', 'blast_samples_gw', 'pre_blast', 'report']
             for sub_dir in folders:
                 target = self.name_family + '/' + sub_dir
                 if not os.path.exists(target):
@@ -247,7 +248,7 @@ class CGP:
                 temp_fields = open("{}._fields.temp".format(out_file), "w")
                 temp_fields.write("query,species,chromosome,prot_acc,symbol,start,end,strand\n")
                 for line in fields:
-                    temp_fields.write(','.join(line)+'\n')
+                    temp_fields.write(','.join(line) + '\n')
                 temp_fields.close()
                 del filtered_blast
                 # Set table
@@ -328,8 +329,8 @@ class CGP:
     def add_sample_cols(self, table):
         # for chrom_data, genome_data in zip(self.chrom_wide, self.genome_wide):
         for genome_data in self.genome_wide:
-                # table.loc[(table.species == chrom_data[0]) &
-                #       (table.cluster == chrom_data[1]), 'perc95_chrom'] = chrom_data[2]
+            # table.loc[(table.species == chrom_data[0]) &
+            #       (table.cluster == chrom_data[1]), 'perc95_chrom'] = chrom_data[2]
 
             table.loc[(table.species == genome_data[0]) &
                       (table.cluster == genome_data[1]), 'perc95_gw'] = genome_data[2]
@@ -380,6 +381,9 @@ class CGP:
             if len(os.listdir(folder)) == 0:
                 os.removedirs(folder)
         # Move result to output directory
+        for pre_blast_file in glob("{}/pre*".format(self.name_family)) + \
+                ["{0}/{0}_ext_query.fa".format(self.name_family)]:
+            shutil.move(pre_blast_file, "{}/pre_blast/{}".format(self.name_family, pre_blast_file))
         shutil.move(self.name_family, '{}/{}'.format(self.out_dir, self.name_family))
 
     @staticmethod
@@ -390,8 +394,20 @@ class CGP:
         tabs['dataset'] = dataset
         return tabs
 
+
 # These functions were placed outside the class because if they were inside, the whole class
 # would have been copied for each processor
+
+def pre_blast(cpu, ref, all_genes, name_family, sp):
+    print("Running blast search step to extend query")
+    cgp.blast_exe(cpu, ref, all_genes, "{0}/pre_{0}.blast".format(name_family))
+    pre_family_blast = cgp.blast_parse("{0}/pre_{0}.blast".format(name_family), acc_col=2, tab=True,
+                                       sp_list=sp, for_dict=False)
+    hits = pre_family_blast['prot_acc'].values
+    with open("{0}/{0}_ext_query.fa".format(name_family), "w") as fileO:
+        for seq in SeqIO.parse(cgp.all_genes_fasta, 'fasta'):
+            if seq.name.split("|")[2] in hits:
+                SeqIO.write(seq, fileO, "fasta")
 
 
 def meanshift_cluster(ms_sp_table):
@@ -499,6 +515,7 @@ def grab_paralogs(acc_list, paralogs, evalue):
     :return: max number of paralogs
     """
     paralogs_list = []
+    # print(len(paralogs))
     # Retain only blast hits less than or equal to a given E-value
     paralogs_evalue = {}
     for acc in paralogs:
@@ -507,6 +524,9 @@ def grab_paralogs(acc_list, paralogs, evalue):
             if hit[1] <= evalue:
                 paralog_eval_list.append(hit[0])
         paralogs_evalue[acc] = paralog_eval_list
+        eval_removed = len(paralogs[acc]) - len(paralogs_evalue[acc])
+        # if eval_removed > 0:
+        #    print("{}: Paralogs removed by E-value {}: {}".format(acc, evalue, eval_removed))
     # paralogs = json.loads(open('{}/{}_{}.json'.format(blast_dir, sp.replace(' ', '_'), chrom)).read())
     # If there are no genes in the sample interval, return 0 paralogs
     if len(acc_list) == 0:
@@ -613,8 +633,10 @@ if __name__ == "__main__":
     init_time = time()
     # Create directory structure
     cgp.create_folders()
+    # Run the blast step and use the resulting hits as new query
+    pre_blast(args.cpu, cgp.ref_sequence, cgp.all_genes_fasta, cgp.name_family, cgp.sp)
     # Run blast
-    cgp.blast_exe(args.cpu, cgp.ref_sequence, cgp.all_genes_fasta, cgp.blast_out)
+    cgp.blast_exe(args.cpu, "{0}/{0}_ext_query.fa".format(cgp.name_family), cgp.all_genes_fasta, cgp.blast_out)
     # Parse blast result
     cgp.family_blast = cgp.blast_parse(cgp.blast_out, acc_col=2, tab=True,
                                        sp_list=cgp.sp, for_dict=False)
