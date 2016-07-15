@@ -51,6 +51,9 @@ parser.add_argument("--evalue", "-e",
                     type=float,
                     default=1e-3,
                     help="E-value threshold for blast steps (default: 1e-3)")
+parser.add_argument("--iterative", "-i",
+                    action="store_true",
+                    help="Perform an extra blast search at the beginning to enrich the query set")
 # Check if blast is installed. Since this is not required for defining the analysis, it is executed before
 # the class definition
 blast_path = shutil.which('blastp')
@@ -121,9 +124,9 @@ class CGP:
         """
         self.genomes = pd.read_csv(self.genome_file)
         self.genomes.dropna(inplace=True)
-        self.genomes['chromosome'] = self.genomes['chromosome'].astype(str)
+        self.genomes.loc[:, 'chromosome'] = self.genomes['chromosome'].astype(str)
         self.all_genes = pd.read_csv(self.all_genes_file)
-        self.all_genes['chromosome'] = self.all_genes['chromosome'].astype(str)
+        self.all_genes.loc[:, 'chromosome'] = self.all_genes['chromosome'].astype(str)
         self.all_genes = self.all_genes.loc[~(self.all_genes['chromosome'].isnull()) &
                                             (self.all_genes['chromosome'] != "NA")]
         self.all_genes.set_index('acc', inplace=True)
@@ -224,11 +227,11 @@ class CGP:
                 if len(np.unique(result_tab['query'].values)) > 1:
                     # new_query_name = result_tab['query'].values[0]
                     new_query_name = 'multiple_sequences'
-                    result_tab['query'] = new_query_name
+                    result_tab.loc[:, 'query'] = new_query_name
 
             # Filter out hits if they are less than three times (or greater
             #  than three times) the query length
-            result_tab['len_ratio'] = result_tab.apply(self.blast_filter, axis=1)
+            result_tab.loc[:, 'len_ratio'] = result_tab.apply(self.blast_filter, axis=1)
             result_tab.sort_values(by=['query', 'subject', 'len_ratio'], inplace=True, ascending=True)
             result_tab.drop_duplicates(subset=['query', 'subject'], keep='last', inplace=True)
 
@@ -241,12 +244,13 @@ class CGP:
                     filtered_blast.loc[:, 'query_acc'] = filtered_blast['query'].map(lambda x: x.split("|")[acc_col])
                 except IndexError:
                     filtered_blast.loc[:, 'query_acc'] = filtered_blast['query'].map(lambda x: x.split("|")[0])
-                # Attach the query name to the subject, to include it as a column
-                filtered_blast.loc[:, 'subject'] = filtered_blast.query_acc + '|' + filtered_blast.subject
+                # Attach the query name and the evalue to the subject, to include them as columns
+                filtered_blast.loc[:, 'subject'] = filtered_blast.query_acc + '|' + filtered_blast.subject + \
+                                                   "|" + filtered_blast['eval'].astype(str)
                 # Extract table from subject names
                 fields = (i for i in map(lambda x: x.split('|'), filtered_blast.subject.values))
                 temp_fields = open("{}._fields.temp".format(out_file), "w")
-                temp_fields.write("query,species,chromosome,prot_acc,symbol,start,end,strand\n")
+                temp_fields.write("query,species,chromosome,prot_acc,symbol,start,end,strand,evalue\n")
                 for line in fields:
                     temp_fields.write(','.join(line) + '\n')
                 temp_fields.close()
@@ -257,14 +261,14 @@ class CGP:
                 # sub_table = pd.DataFrame(list(fields), columns=['query', 'species', 'chromosome', 'prot_acc',
                 #                                                 'symbol', 'start', 'end', 'strand'])
                 # In case there are spaces in species names, remove them
-                sub_table['species'] = sub_table['species'].map(lambda x: str(x.replace(" ", "_")))
+                sub_table.loc[:, 'species'] = sub_table['species'].map(lambda x: str(x.replace(" ", "_")))
                 # Only consider hits from selected species
                 if len(sp_list) > 0:
                     sub_table = sub_table.loc[sub_table['species'].isin(sp_list)]
-                sub_table['start'] = sub_table['start'].astype(int)
-                sub_table['end'] = sub_table['end'].astype(int)
-                sub_table['strand'] = sub_table['strand'].astype(int)
-                sub_table['Length'] = abs(sub_table['end'] - sub_table['start'])
+                sub_table.loc[:, 'start'] = sub_table['start'].astype(int)
+                sub_table.loc[:, 'end'] = sub_table['end'].astype(int)
+                sub_table.loc[:, 'strand'] = sub_table['strand'].astype(int)
+                sub_table.loc[:, 'Length'] = abs(sub_table['end'] - sub_table['start'])
                 sub_table.sort_values(by=['species', 'chromosome', 'start'], inplace=True)
                 # Remove hits in non-assembled chromosomes (almost deprecated)
                 sub_table = sub_table.loc[sub_table['chromosome'] != 'NA']
@@ -346,6 +350,7 @@ class CGP:
                                      on=['species', 'chromosome', 'cluster'])['prot_acc'].values
         # Remove annotation for cluster name and cluster order
         ms_compiled.loc[ms_compiled['prot_acc'].isin(accs_for_deletion), ['cluster', 'order']] = 'na'
+        ms_compiled.set_index("query", inplace=True)
         ms_compiled.to_csv("{0}/report/{0}_genes.csv".format(self.name_family))
         new_numbers.loc[new_numbers['paralogs'] < new_numbers['perc95_gw'], 'cluster'] = 'na'
         new_numbers.set_index("species", inplace=True)
@@ -360,6 +365,13 @@ class CGP:
         Remove intermediate files from blast sampling
         :return: None
         """
+        # Move files from the query enrichment step to its directory if
+        # the -i flag was turned on
+        if args.iterative:
+            for pre_blast_file in glob("{}/pre*.*".format(self.name_family)) + \
+                    ["{0}/{0}_ext_query.fa".format(self.name_family)]:
+                filename = pre_blast_file.split("/")[-1]
+                shutil.move(pre_blast_file, "{}/pre_blast/{}".format(self.name_family, filename))
         sample_tar_o = tarfile.open('{}/report/blast_samples.tgz'.format(self.name_family), 'w:gz')
         for sample_folder in ['blast_samples', 'blast_samples_gw']:
             # Process fastas
@@ -381,9 +393,6 @@ class CGP:
             if len(os.listdir(folder)) == 0:
                 os.removedirs(folder)
         # Move result to output directory
-        for pre_blast_file in glob("{}/pre*".format(self.name_family)) + \
-                ["{0}/{0}_ext_query.fa".format(self.name_family)]:
-            shutil.move(pre_blast_file, "{}/pre_blast/{}".format(self.name_family, pre_blast_file))
         shutil.move(self.name_family, '{}/{}'.format(self.out_dir, self.name_family))
 
     @staticmethod
@@ -391,7 +400,7 @@ class CGP:
         sample_cols = {-1: 'species', 0: 'cluster'}
         tabs = tabs.rename(columns=lambda x: x - 1 if type(x) != int else x)
         tabs = tabs.rename(columns=sample_cols)
-        tabs['dataset'] = dataset
+        tabs.loc[:, 'dataset'] = dataset
         return tabs
 
 
@@ -423,8 +432,8 @@ def meanshift_cluster(ms_sp_table):
                                  (cgp.all_genes['chromosome'] == chrom_mean_shift)]
     # If there is only one gene, set the cluster to zero -> single-copy gene in the chromosome
     if len(ms_sp_table) == 1:
-        ms_sp_table['cluster'] = 0
-        ms_sp_table['order'] = 0
+        ms_sp_table.loc[:, 'cluster'] = 0
+        ms_sp_table.loc[:, 'order'] = 0
     else:
         # Calculate the mean between neighboring genes in the chromosome
         gene_distances = proteome['end'].values[1:] - proteome['start'][:-1]
@@ -605,7 +614,7 @@ def blast_sampling(pre_cluster_table, gw, db, name_family, blast_samples, genome
         print("Error in :{}, {}".format(sp, pre_cluster_table.cluster))
         return pre_cluster_table
     with_perc = pre_cluster_table.loc[:]
-    with_perc[col_name] = np.percentile(max_paras_list, 95)
+    with_perc.loc[:, col_name] = np.percentile(max_paras_list, 95)
     query_perc = (sp, cluster, np.percentile(max_paras_list, 95))
     status_msg = "{:<25} {:<9} {:<25} {} ({})".format(sp, original_paralogs, cluster, msg, round(query_perc[2], 3))
     if gw and original_paralogs >= query_perc[2]:
@@ -633,10 +642,13 @@ if __name__ == "__main__":
     init_time = time()
     # Create directory structure
     cgp.create_folders()
-    # Run the blast step and use the resulting hits as new query
-    pre_blast(args.cpu, cgp.ref_sequence, cgp.all_genes_fasta, cgp.name_family, cgp.sp)
-    # Run blast
-    cgp.blast_exe(args.cpu, "{0}/{0}_ext_query.fa".format(cgp.name_family), cgp.all_genes_fasta, cgp.blast_out)
+    if args.iterative:
+        # Run the blast step and use the resulting hits as new query
+        pre_blast(args.cpu, cgp.ref_sequence, cgp.all_genes_fasta, cgp.name_family, cgp.sp)
+        # Run blast
+        cgp.blast_exe(args.cpu, "{0}/{0}_ext_query.fa".format(cgp.name_family), cgp.all_genes_fasta, cgp.blast_out)
+    else:
+        cgp.blast_exe(args.cpu, cgp.ref_sequence, cgp.all_genes_fasta, cgp.blast_out)
     # Parse blast result
     cgp.family_blast = cgp.blast_parse(cgp.blast_out, acc_col=2, tab=True,
                                        sp_list=cgp.sp, for_dict=False)
