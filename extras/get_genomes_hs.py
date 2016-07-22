@@ -1,37 +1,44 @@
 from ftplib import FTP
 import os
 
-species = [x.strip('\n') for x in open('species.txt').readlines()]
+builds = [x.strip('\n') for x in open('builds.txt').readlines()]
 
-for sp in species:
-    print(sp)
+for build in [x for x in builds if not x.startswith("#")]:
+    print(build)
     # Connect to the NCBI
+
+    # Get into each species' directory
     ncbi = FTP("ftp.ncbi.nih.gov")
     ncbi.login()
-    # Get into each species' directory
-    ncbi.cwd('genomes/{}/Assembled_chromosomes/gbs/'.format(sp))
-    # Go through the chromosomes
-    for chrom in ncbi.nlst():
+    ncbi.cwd('genomes/Homo_sapiens/ARCHIVE/{}'.format(build))
+
+    chromosomes = [x for x in ncbi.nlst() if x.startswith("CHR")]
+    for chrom in chromosomes:
+        ncbi.cwd(chrom)
         # Only download annotations from reference assembly
-        if 'ref' in chrom:
+        for file in [x for x in ncbi.nlst() if 'alt' not in x and 'gbs' in x]:
             chrom_name = chrom.split('_')[-1].split('.')[0]
-            # And only for assembled chromosomes
-            if chrom_name not in ['unplaced', 'unlocalized', ]:
-                # Download chromosome annotation
-                if not os.path.exists(chrom.replace('.gz', '')):
-                    ret_cmd = "RETR {}".format(chrom)
-                    ncbi.retrbinary(ret_cmd, open(chrom, 'wb').write)
-                    # Extract annotation
-                    extract = 'gunzip -d {}'.format(chrom)
-                    os.system(extract)
+
+            # Download chromosome annotation
+            out_file = file.replace('.gz', '')
+            if not os.path.exists(out_file):
+                ret_cmd = "RETR {}".format(file)
+                ncbi.retrbinary(ret_cmd, open(file, 'wb').write)
+                # Extract annotation
+                extract = 'gunzip -d {}'.format(file)
+                os.system(extract)
+                os.rename(out_file, "{}_{}.gbs".format(build.lower(), chrom_name))
+                break
+        ncbi.cwd("..")
+
     print("Downloading proteome")
     ncbi = FTP("ftp.ncbi.nih.gov")
     ncbi.login()
     # Go to protein directory for each species
-    ncbi.cwd("genomes/{}/protein/".format(sp))
-    if not os.path.exists("{}.fa".format(sp)):
+    ncbi.cwd("genomes/Homo_sapiens/ARCHIVE/{}/protein/".format(build))
+    if not os.path.exists("{}.fa".format(build)):
         # Download proteome
         ncbi.retrbinary("RETR protein.fa.gz", open('protein.fa.gz', 'wb').write)
         # Extract proteome
         os.system("gunzip protein.fa.gz")
-        os.rename("protein.fa", "{}.fa".format(sp))
+        os.rename("protein.fa", "{}.fa".format(build.lower()))

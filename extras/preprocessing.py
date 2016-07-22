@@ -1,13 +1,13 @@
 import os
 import time
-
+import sys
 import pandas as pd
 import numpy as np
 from Bio import Entrez, SeqIO
 from concurrent import futures
 Entrez.email = 'juan.f.ortiz@vanderbilt.edu'
 
-GENOME_DB = 'genomes.gb'
+GENOME_DB = sys.argv[1]
 CPUS = 6
 
 

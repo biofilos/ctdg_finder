@@ -92,7 +92,7 @@ class CGP:
         :return: None
         """
         # Check that the directory with the database exists
-        assert os.path.exists(self.out_dir), "directory {} with database does not exist".format(self.db)
+        assert os.path.exists(self.db), "directory {} with database does not exist".format(self.db)
         db_path = '{}/all_seqs.fa.'.format(self.db)
         # Check that the blast database files exists
         blast_files = sum([os.path.exists(db_path + x) for x in ['phr', 'pin', 'psq']])
