@@ -15,6 +15,9 @@ extras/hs_builds
 extras/hs_scaffolds/*.csv
 extras/hs_scaffolds/*.gff3
 extras/hs_scaffolds/*.fa
+extras/hs_scaffolds/all_seqs.*
+extras/hs_scaffolds/blasts
+extras/hs_scaffolds/scaffolds*
 extras/species*
 glyc
 invertebrates*
@@ -24,3 +27,4 @@ multis
 ncbi*
 queries
 sample_query
+notes

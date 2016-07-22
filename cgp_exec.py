@@ -16,51 +16,7 @@ from Bio import SeqIO
 from sklearn.cluster import MeanShift
 from termcolor import colored
 
-# Define arguments
-parser = argparse.ArgumentParser("Paralogs cluster annotation pipeline")
-parser.add_argument("--name_family", "-n",
-                    action='store',
-                    help="Name of the gene family")
 
-parser.add_argument("--ref_seq", "-r",
-                    action='store',
-                    help="reference gene family sequence")
-
-parser.add_argument("--blast_samples", "-b",
-                    action="store",
-                    type=int,
-                    help="Number of samples to build empirical distribution of paralogs")
-parser.add_argument("--sp", "-s",
-                    action="append",
-                    default=[],
-                    help="Species to run the analysis on (must be written in quotes)")
-parser.add_argument("--out_dir", "-o",
-                    action="store",
-                    default='cgp_out',
-                    help="Output directory")
-parser.add_argument("--cpu", "-c",
-                    action="store",
-                    type=int,
-                    default=1,
-                    help="CPU to be used")
-parser.add_argument("--db", "-d",
-                    action="store",
-                    help="Directory with gene annotation and blast database")
-parser.add_argument("--evalue", "-e",
-                    action="store",
-                    type=float,
-                    default=1e-3,
-                    help="E-value threshold for blast steps (default: 1e-3)")
-parser.add_argument("--iterative", "-i",
-                    action="store_true",
-                    help="Perform an extra blast search at the beginning to enrich the query set")
-# Check if blast is installed. Since this is not required for defining the analysis, it is executed before
-# the class definition
-blast_path = shutil.which('blastp')
-assert bool(blast_path), "blastp is not installed or it is not in your PATH"
-
-# Parse arguments
-args = parser.parse_args()
 
 
 # Define class CGP
@@ -628,6 +584,51 @@ def blast_sampling(pre_cluster_table, gw, db, name_family, blast_samples, genome
 
 ###
 if __name__ == "__main__":
+    # Define arguments
+    parser = argparse.ArgumentParser("Paralogs cluster annotation pipeline")
+    parser.add_argument("--name_family", "-n",
+                        action='store',
+                        help="Name of the gene family")
+
+    parser.add_argument("--ref_seq", "-r",
+                        action='store',
+                        help="reference gene family sequence")
+
+    parser.add_argument("--blast_samples", "-b",
+                        action="store",
+                        type=int,
+                        help="Number of samples to build empirical distribution of paralogs")
+    parser.add_argument("--sp", "-s",
+                        action="append",
+                        default=[],
+                        help="Species to run the analysis on (must be written in quotes)")
+    parser.add_argument("--out_dir", "-o",
+                        action="store",
+                        default='cgp_out',
+                        help="Output directory")
+    parser.add_argument("--cpu", "-c",
+                        action="store",
+                        type=int,
+                        default=1,
+                        help="CPU to be used")
+    parser.add_argument("--db", "-d",
+                        action="store",
+                        help="Directory with gene annotation and blast database")
+    parser.add_argument("--evalue", "-e",
+                        action="store",
+                        type=float,
+                        default=1e-3,
+                        help="E-value threshold for blast steps (default: 1e-3)")
+    parser.add_argument("--iterative", "-i",
+                        action="store_true",
+                        help="Perform an extra blast search at the beginning to enrich the query set")
+    # Check if blast is installed. Since this is not required for defining the analysis, it is executed before
+    # the class definition
+    blast_path = shutil.which('blastp')
+    assert bool(blast_path), "blastp is not installed or it is not in your PATH"
+
+    # Parse arguments
+    args = parser.parse_args()
     cgp = CGP(name_family=args.name_family, out_dir=args.out_dir, db=args.db, ref_sequence=args.ref_seq,
               blast_samples=args.blast_samples, sp=args.sp, evalue=args.evalue)
     cgp.check_arguments()
