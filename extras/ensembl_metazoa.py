@@ -173,22 +173,13 @@ def download_seq(ensembls):
     for gene in ensembls.index:
         seq_record = ensembls.loc[gene]
         if seq_record is pd.DataFrame:
-            seq_record.drop_duplicates(subset=['start', 'end'], keep='first', inplace=True)
-            sp = seq_record['species'].values[0]
-            chrom = str(seq_record['chromosome'].values[0])
-            # seq = gene
-            start = int(seq_record['start'].values[0])
-            end = int(seq_record['end'].values[0])
-            strand = int(seq_record['strand'].values[0])
-            symbol = seq_record['symbol'].values[0]
-        else:
-            sp = seq_record['species']
-            chrom = str(seq_record['chromosome'])
-            # seq = gene
-            start = int(seq_record['start'])
-            end = int(seq_record['end'])
-            strand = int(seq_record['strand'])
-            symbol = seq_record['symbol']
+            seq_record = seq_record.iloc[0]
+        sp = seq_record['species']
+        chrom = str(seq_record['chromosome'])
+        start = int(seq_record['start'])
+        end = int(seq_record['end'])
+        strand = int(seq_record['strand'])
+        symbol = seq_record['symbol']
         if symbol is np.nan:
             symbol = gene
         # Check if the gene has already been downloaded
