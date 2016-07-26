@@ -171,7 +171,7 @@ def download_seq(ensembls):
     all_seqs = open(plant_fasta, "a")
     #timer_to_flush = 0
     for gene in ensembls.index:
-        seq_record = ensembls.loc[gene]
+        seq_record = ensembls.loc[gene].drop_duplicates(['start', 'end'])
         sp = seq_record['species']
         chrom = str(seq_record['chromosome'])
         # seq = gene
