@@ -13,23 +13,22 @@ will be gathered from the Ensembl rest API
 Run it as ./assembly_info.py species_list.txt
 """
 
-
-
 # Check in which database each species is
 print("Checking databases")
 ensembls = {}
-for server in ["http://rest.ensemblgenomes.org", "http://rest.ensembl.org"]:
-    for ext in ["/info/species?", "/info/species?division=EnsemblPlants"]:
-        r = requests.get(server+ext, headers={"Content-Type": "application/json"})
-        if not r.ok:
-            r.raise_for_status()
-            sys.exit()
-        else:
-            decoded = r.json()
-            for sp in decoded['species']:
-                species = sp['name']
-                ensembls[species] = server
-                print(sp)
+for server in ["http://rest.ensembl.org", "http://rest.ensemblgenomes.org"]:
+    ext = "/info/species?"
+    r = requests.get(server + ext, headers={"Content-Type": "application/json"})
+    if not r.ok:
+        r.raise_for_status()
+        sys.exit()
+    else:
+        decoded = r.json()
+        for sp in decoded['species']:
+            species = sp['name']
+            ensembls[species] = server
+            print(sp)
+        break
 
 # Get the server for each of the species of interest
 pre_list = ["homo_sapiens", "anolis_carolinensis", "ciona_intestinalis", "caenorhabditis_elegans",
@@ -39,6 +38,7 @@ pre_list = ["homo_sapiens", "anolis_carolinensis", "ciona_intestinalis", "caenor
 sp_server = {}
 for sp in pre_list:
     sp_server[sp] = ensembls[sp]
+
 
 # Filter out species without annotations
 
@@ -72,11 +72,11 @@ def get_assembly(sp_item):
             #                                                   chrom['name'] in ['MT', 'cutchr', 'Mt', 'Pt'] or
             #                                                   'random' in chrom['name'] or 'hap' in chrom['name']):
             if chrom['coord_system'] == 'chromosome' and not (chrom['name'].startswith('Un') or
-                                                              chrom['name'].startswith('un') or
-                                                              chrom['name'] in ['MT', 'cutchr', 'Mt', 'Pt',
-                                                                                'random', 'hap',
-                                                                                'dmel_mitochondrion_genome',
-                                                                                'Mito', 'MtDNA']):
+                                                                  chrom['name'].startswith('un') or
+                                                                      chrom['name'] in ['MT', 'cutchr', 'Mt', 'Pt',
+                                                                                        'random', 'hap',
+                                                                                        'dmel_mitochondrion_genome',
+                                                                                        'Mito', 'MtDNA']):
                 assembled_chroms[chrom['name']] = [sp_item, chrom['length']]
         # Organize results in data frame
         # Process assembly if there were assemblied chromosomes
@@ -169,23 +169,33 @@ def download_seq(ensembls):
     """
     plant_fasta = "all_seqs.fa"
     all_seqs = open(plant_fasta, "a")
-    #timer_to_flush = 0
+    # timer_to_flush = 0
     for gene in ensembls.index:
-        seq_record = ensembls.loc[gene].drop_duplicates(['start', 'end'])
-        sp = seq_record['species']
-        chrom = str(seq_record['chromosome'])
-        # seq = gene
-        start = int(seq_record['start'])
-        end = int(seq_record['end'])
-        strand = int(seq_record['strand'])
-        symbol = seq_record['symbol']
+        seq_record = ensembls.loc[gene]
+        if seq_record is pd.DataFrame:
+            seq_record.drop_duplicates(subset=['start', 'end'], keep='first', inplace=True)
+            sp = seq_record['species'].values[0]
+            chrom = str(seq_record['chromosome'].values[0])
+            # seq = gene
+            start = int(seq_record['start'].values[0])
+            end = int(seq_record['end'].values[0])
+            strand = int(seq_record['strand'].values[0])
+            symbol = seq_record['symbol'].values[0]
+        else:
+            sp = seq_record['species']
+            chrom = str(seq_record['chromosome'])
+            # seq = gene
+            start = int(seq_record['start'])
+            end = int(seq_record['end'])
+            strand = int(seq_record['strand'])
+            symbol = seq_record['symbol']
         if symbol is np.nan:
             symbol = gene
         # Check if the gene has already been downloaded
         seq_name = "{}|{}|{}|{}|{}|{}|{}".format(sp, chrom, gene, symbol,
                                                  start, end, strand)
         seq_name = seq_name.replace(' ', '--')
-        #timer_to_flush += 1
+        # timer_to_flush += 1
         server = sp_server[sp]
         ext = "/sequence/id/{}?multiple_sequences=1;type=protein".format(gene)
         headers = {"Content-Type": "application/json"}
@@ -205,7 +215,7 @@ def download_seq(ensembls):
 
         all_seqs.write(">{}\n{}\n".format(seq_name, longest['seq']))
         # Write in file every 10 genes
-        #if timer_to_flush == 200:
+        # if timer_to_flush == 200:
         #    all_seqs.flush()
         #    timer_to_flush = 0
         print(sp, symbol)
