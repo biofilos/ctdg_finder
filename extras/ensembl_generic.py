@@ -21,7 +21,7 @@ file_in = sys.argv[2]
 assemblies = sys.argv[1]
 out_dir = file_in + '_db'
 if not os.path.exists(out_dir):
-	os.makedirs(out_dir)
+    os.makedirs(out_dir)
 ensembls = json.loads(open(assemblies).read())
 
 ## This part of the code was implemented as a separate script

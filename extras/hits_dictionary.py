@@ -1,10 +1,7 @@
 import json
 from glob import glob
-import os
 import sys
 import pandas as pd
-import numpy as np
-import cgpFinder as cgp
 
 # Change directory to location of blast files
 # os.chdir(sys.argv[1])
@@ -30,6 +27,7 @@ for table in glob('{}/*.blast_out'.format(blast_folder)):
     table_dict = {chrom: {} for chrom in chromosomes}
     # Go through the chromosomes
     for chrom in chromosomes:
+        print(chrom)
         # Get annotation from all the genes in the chromosome
         queries = sp_genes.loc[sp_genes['chromosome'] == chrom, 'acc'].values
         # Subset the blast with queries and subjects from that chromosome
@@ -37,7 +35,10 @@ for table in glob('{}/*.blast_out'.format(blast_folder)):
                                    (sp_table['chromosome'] == chrom)]
 
         for query in queries:
-            table_dict[chrom][query] = list(chrom_table.loc[chrom_table['query'] == query, 'prot_acc'].values)
+            value_array = list(chrom_table.loc[(chrom_table['query'] == query) &
+                                               (chrom_table['species'] == sp), ['prot_acc', 'evalue']].values)
+            value_list = [list(x) for x in value_array]
+            table_dict[chrom][query] = value_list
 
 #     # Save result to JSON file
     with open(table.replace('.blast_out', '.json'), 'w') as json_out:

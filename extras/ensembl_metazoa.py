@@ -242,10 +242,12 @@ if not os.path.exists("coding_no_overlap.csv"):
     coding_no_overlap.to_csv('coding_no_overlap.csv')
 else:
     coding_no_overlap = pd.read_csv("coding_no_overlap.csv", index_col=0)
-coding_no_overlap['length'] = coding_no_overlap['end'] - coding_no_overlap['start']
-coding_no_overlap['length'] = coding_no_overlap['length'].astype(int)
-coding_no_overlap = coding_no_overlap.loc[:, ['start', 'end', 'length',
-                                              'strand', 'chromosome', 'species', 'external_name']]
+coding_no_overlap.loc[:, 'length'] = coding_no_overlap['end'] - coding_no_overlap['start']
+coding_no_overlap.loc[:, 'length'] = coding_no_overlap['length'].astype(int)
+coding_no_overlap = coding_no_overlap.loc[:, ['start', 'end', 'length', 'strand',
+                                              'chromosome', 'species', 'external_name']]
+coding_no_overlap.loc[:, 'chromosome'] = coding_no_overlap['chromosome'].astype(str)
+
 coding_no_overlap.reset_index(inplace=True)
 coding_no_overlap.rename(columns={'gene_id': 'acc', 'external_name': 'symbol'}, inplace=True)
 null_symbols = coding_no_overlap['symbol'].isnull()
