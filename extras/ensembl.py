@@ -175,19 +175,19 @@ print("Checking species annotation")
 good_sp = check_available(species_list)
 
 print("Getting assembly information")
-if not os.path.exists('ensembl/chromosomes.csv'):
+if not os.path.exists('chromosomes.csv'):
     assemblies = pd.concat(map(get_assembly, good_sp))
     # Save to file
-    assemblies.to_csv('ensembl/chromosomes.csv')
+    assemblies.to_csv('chromosomes.csv')
 else:
-    assemblies = pd.read_csv('ensembl/chromosomes.csv')
+    assemblies = pd.read_csv('chromosomes.csv')
 
 print("Downloading annotations")
-if not os.path.exists('ensembl/annotation.csv'):
+if not os.path.exists('annotation.csv'):
     annotation_table = get_annotation(assemblies)
-    annotation_table.to_csv('ensembl/annotation.csv')
+    annotation_table.to_csv('annotation.csv')
 else:
-    annotation_table = pd.read_csv('ensembl/annotation.csv')
+    annotation_table = pd.read_csv('annotation.csv')
 
 print("Downloading transcript IDs")
 if 'transcript' in annotation_table.columns:
@@ -196,9 +196,9 @@ else:
     protein_coding = annotation_table['biotype'] == 'protein_coding'
     annotation_table.loc[protein_coding,
                          'transcript'] = annotation_table.loc[protein_coding, 'gene_id'].map(get_transcript_id)
-    annotation_table.to_csv("ensembl/annotation.csv")
+    annotation_table.to_csv("annotation.csv")
 
 coding_annotation = annotation_table.loc[annotation_table.biotype == 'protein_coding']
-coding_annotation.to_csv("ensembl/coding_annotation.csv")
+coding_annotation.to_csv("coding_annotation.csv")
 
 _ = download_seq(coding_annotation.transcript.values[0])

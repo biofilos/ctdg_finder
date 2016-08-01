@@ -1,14 +1,14 @@
 import os
 import time
-
+import sys
 import pandas as pd
 import numpy as np
 from Bio import Entrez, SeqIO
 from concurrent import futures
 Entrez.email = 'juan.f.ortiz@vanderbilt.edu'
 
-GENOME_DB = 'genomes.gb'
-CPUS = 6
+GENOME_DB = sys.argv[1]
+CPUS = 2
 
 
 def parse_gb():
@@ -33,7 +33,10 @@ def parse_gb():
                 end_feat = feat.location.end.position
                 strand_feat = feat.location.strand
                 acc_feat = feat.qualifiers['protein_id'][0]
-                symbol_feat = feat.qualifiers['gene'][0]
+                try:
+                    symbol_feat = feat.qualifiers['gene'][0]
+                except KeyError:
+                    symbol_feat = acc_feat
                 # Try/except was here
                 if 'product' in feat.qualifiers.keys():
                     name = feat.qualifiers['product'][0]
@@ -51,6 +54,11 @@ def parse_gb():
     feat_table['length'] = abs(feat_table['start'] - feat_table['end'])
     return feat_table
 
+def get_sources(gb):
+    for record in SeqIO.parse(gb, 'genbank'):
+        for feature in record.features:
+            if feature.type == 'source':
+                yield record
 
 def get_assembly_info(record):
     spp = record.annotations['organism']
@@ -158,7 +166,10 @@ def dict_seq(fasta):
     for line in open(fasta):
         line = line.strip('\n')
         if line.startswith('>'):
-            name = line.strip('>').split('|')[3]
+            if "|" not in line:
+                name = line.strip('>').split(' ')[0]
+            else:
+                name = line.strip('>').split('|')[3]
             seq_dict[name] = ''
         else:
             seq_dict[name] += line
@@ -185,9 +196,9 @@ def seq_column(accession):
 # Parse Genbank
 if not os.path.exists('genes_cds.csv'):
     out_data = parse_gb()
-    out_data =  out_data.loc[~(out_data['name'].map(lambda x: 'isoform X' in x))]
+    out_data = out_data.loc[~(out_data['name'].map(lambda x: 'isoform X' in x))]
     # Save full annotation
-    out_data['species'] = out_data['species'].map(lambda x: x.replace(' ','_')
+    out_data['species'] = out_data['species'].map(lambda x: x.replace(' ', '_'))
     out_data.to_csv('genes_cds.csv')
     # Remove some columns
     mini = out_data.loc[:, ['species', 'chromosome', 'symbol', 'start', 'end', 'length', 'strand']]
@@ -216,12 +227,6 @@ genes_selected.reset_index(inplace=True)
 seq_dic = dict_seq('proteomes.fa')
 print("Sequence dictionary, generated")
 
-#gene_ids = list(seq_dic.keys())
-#for gene in gene_ids:
-#    if gene not in all_sp_table['acc'].values:
-#        del seq_dic[gene]
-#    else:
-#        print(gene)
 print("Sequence file, parsed")
 if not os.path.exists("all_seqs.fa"):
     with open('all_seqs.fa', 'w') as seq_db:
@@ -255,14 +260,15 @@ print("Sequence file, generated")
 del seq_dic
 del all_sp_table
 del genes_selected
-rec_list = (x for x in SeqIO.parse(GENOME_DB, 'genbank'))
+# rec_list = (x for x in SeqIO.parse(GENOME_DB, 'genbank') if )
+
 
 with futures.ProcessPoolExecutor(CPUS) as pool:
-    assembly_list = pool.map(get_assembly_info, rec_list)
+    assembly_list = pool.map(get_assembly_info, get_sources(GENOME_DB))
 
 assembly_table = pd.DataFrame(list(assembly_list), columns=['sp', 'chromosome', 'taxid',
-                                                      'GI', 'chr_acc', 'Assembly', 'length'])
-assembly_table['sp'] = assembly_table['sp'].map(lambda x: x.replace(' ','_')
+                                                            'GI', 'chr_acc', 'Assembly', 'length'])
+assembly_table['sp'] = assembly_table['sp'].map(lambda x: x.replace(' ', '_'))
 
 assembly_table.to_csv('chromosomes.csv')
 print("Assembly file, generated")

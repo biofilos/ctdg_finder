@@ -106,4 +106,3 @@ def parse(out_file, acc_col, tab=True, sp_list=[], for_dict=False):
         else:
             return filtered_blast
 
-
