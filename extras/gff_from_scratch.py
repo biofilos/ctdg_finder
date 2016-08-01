@@ -5,6 +5,7 @@ import os
 import pandas as pd
 import time
 from Bio import SeqIO, Entrez
+Entrez.email = 'juan.f.ortiz@vanderbilt.edu'
 
 CPUS = 6
 def parse_gff(in_file, sp):
@@ -62,16 +63,7 @@ def parse_gff(in_file, sp):
 
 # feat, chrom = parse_gff("hs-sc_GRCh38.p2.gff3", "hs_38-sc")
 
-feats, chroms = [], []
 
-for genome in glob.glob("*.gff3"):
-    sp = genome.split("_")[0]
-    feat, chrom = parse_gff(genome, sp)
-    feats.append(feat)
-    chroms.append(chrom)
-
-cds_table = pd.concat(feats).set_index('acc')
-chromosomes = pd.concat(chroms)
 
 ####
 
@@ -163,7 +155,7 @@ def dict_seq(fasta):
     for line in open(fasta):
         line = line.strip('\n')
         if line.startswith('>'):
-            name = line.strip('>').split('|')[3]
+            name = line.strip('>').split('|')[2]
             seq_dict[name] = ''
         else:
             seq_dict[name] += line
@@ -188,48 +180,51 @@ def seq_column(accession):
 
 
 # Parse Genbank
-out_data = cds_table
-out_data =  out_data.loc[~(out_data['name'].map(lambda x: 'isoform X' in x))]
-# Save full annotation
-out_data.loc[:, 'species'] = out_data['species'].map(lambda x: x.replace(' ','_'))
-out_data.to_csv('genes_cds.csv')
-# Remove some columns
-mini = out_data.loc[:, ['species', 'chromosome', 'symbol', 'start', 'end', 'length', 'strand']]
-mini.to_csv('mini_table.csv')
-del mini
-
-
 
 if os.path.exists('genes_parsed.csv'):
     all_sp_table = pd.read_csv('genes_parsed.csv')
 else:
+    feats, chroms = [], []
+
+    for genome in glob.glob("*.gff3"):
+        sp = genome.split("_")[0]
+        feat, chrom = parse_gff(genome, sp)
+        feats.append(feat)
+        chroms.append(chrom)
+
+    out_data = pd.concat(feats).set_index('acc')
+    chromosomes = pd.concat(chroms)
+    chromosomes['sp'] = chromosomes['sp'].map(lambda x: x.replace(' ', '_'))
+    chromosomes.to_csv('chromosomes.csv')
+    del chromosomes
+    print("Assembly file, generated")
+    out_data = out_data.loc[~(out_data['name'].map(lambda x: 'isoform X' in x))]
+    # Save full annotation
+    out_data.loc[:, 'species'] = out_data['species'].map(lambda x: x.replace(' ', '_'))
+    out_data.to_csv('genes_cds.csv')
+    # Remove some columns
+    mini = out_data.loc[:, ['species', 'chromosome', 'symbol', 'start', 'end', 'length', 'strand']]
+    mini.to_csv('mini_table.csv')
+    del mini
     with futures.ProcessPoolExecutor(CPUS) as pool:
         sp_tables = pool.map(remove_overlaps_sp, list(set(out_data.species.values)))
     all_sp_table = pd.concat(sp_tables)
     all_sp_table.to_csv('genes_parsed.csv')
+    all_sp_table.reset_index(inplace=True)
     del out_data
 
 print("GenBank annotation parsed")
 
 # Generate fasta file
-genes_selected = all_sp_table
-genes_selected.reset_index(inplace=True)
-
 
 seq_dic = dict_seq('proteomes.fa')
 print("Sequence dictionary, generated")
 
-#gene_ids = list(seq_dic.keys())
-#for gene in gene_ids:
-#    if gene not in all_sp_table['acc'].values:
-#        del seq_dic[gene]
-#    else:
-#        print(gene)
 print("Sequence file, parsed")
 if not os.path.exists("all_seqs.fa"):
     with open('all_seqs.fa', 'w') as seq_db:
-        for index in genes_selected.index:
-            seq_table = genes_selected.loc[index]
+        for index in all_sp_table.index:
+            seq_table = all_sp_table.loc[index]
             spp = seq_table['species'].replace(' ', '_')
             chromosome = seq_table['chromosome']
             accession = seq_table['acc']
@@ -239,7 +234,7 @@ if not os.path.exists("all_seqs.fa"):
             strand = seq_table['strand']
             try:
                 seq = seq_dic[accession]
-                del seq_dic[accession]
+                # del seq_dic[accession]
             except:
                 try:
                     print("Downloading {0} from the NCBI ({1} ch: {2})".format(accession, spp, chromosome))
@@ -257,13 +252,5 @@ if not os.path.exists("all_seqs.fa"):
 print("Sequence file, generated")
 del seq_dic
 del all_sp_table
-del genes_selected
-
-assembly_table = chromosomes
-assembly_table['sp'] = assembly_table['sp'].map(lambda x: x.replace(' ','_'))
-
-assembly_table.to_csv('chromosomes.csv')
-print("Assembly file, generated")
-
 
 print("DONE")

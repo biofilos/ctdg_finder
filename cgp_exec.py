@@ -489,7 +489,7 @@ def grab_paralogs(acc_list, paralogs, evalue):
             if hit[1] <= evalue:
                 paralog_eval_list.append(hit[0])
         paralogs_evalue[acc] = paralog_eval_list
-        eval_removed = len(paralogs[acc]) - len(paralogs_evalue[acc])
+        # eval_removed = len(paralogs[acc]) - len(paralogs_evalue[acc])
         # if eval_removed > 0:
         #    print("{}: Paralogs removed by E-value {}: {}".format(acc, evalue, eval_removed))
     # paralogs = json.loads(open('{}/{}_{}.json'.format(blast_dir, sp.replace(' ', '_'), chrom)).read())
