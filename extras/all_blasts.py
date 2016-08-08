@@ -17,19 +17,23 @@ are needed
 '''
 # Specify directory where the blast database is located
 all_seqs = sys.argv[1]
-out_dir = all_seqs.replace(all_seqs.split('/')[-1],'blasts')
+out_dir = all_seqs.replace(all_seqs.split('/')[-1], 'blasts')
 cpus = sys.argv[2]
 
 # Create directory if necessary
 if not os.path.exists(out_dir):
     os.makedirs(out_dir)
+if not os.path.exists("{}/done".format(out_dir)):
+    os.makedirs("{}/done".format(out_dir))
+
 # Generate species-specific proteomes
 for gene in SeqIO.parse(all_seqs, 'fasta'):
     sp_name = gene.name.split("|")[0]
     fasta_name = "{}/{}.fasta".format(out_dir, sp_name)
-    fileO = open(fasta_name, 'a')
-    SeqIO.write(gene, fileO, 'fasta')
-    fileO.close()
+    if not os.path.exists(fasta_name):
+        fileO = open(fasta_name, 'a')
+        SeqIO.write(gene, fileO, 'fasta')
+        fileO.close()
 
 # Run Blast step for each proteome
 for input_file in glob("{}/*.fasta".format(out_dir)):
@@ -37,9 +41,9 @@ for input_file in glob("{}/*.fasta".format(out_dir)):
               blast_samples=0, sp=[], ref_sequence=input_file)
     output_file = input_file.replace('fasta', 'blast')
     sp = input_file.replace('.fasta', '').split('/')[-1]
+    if not os.path.exists(output_file):
+        cgp.blast_exe(cpus, cgp.ref_sequence, all_seqs, output_file)
 
-    cgp.blast_exe(cpus, cgp.ref_sequence, all_seqs, output_file)
-    
-    cgp.blast.exe(cpus, input_file, all_seqs, output_file, 10)
-    
-    sub_table = cgp.blast.parse(output_file, 2, True, [sp], True)
+    sub_table = cgp.blast_parse(output_file, 2, [sp], True, True)
+    for out in [input_file, output_file, output_file + "_filtered"]:
+        os.rename(out, out.replace(out_dir.split('/')[-1], "done/{}".format(out_dir.split('/')[-1])))
