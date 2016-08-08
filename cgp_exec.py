@@ -204,7 +204,22 @@ class CGP:
                 filtered_blast.loc[:, 'subject'] = filtered_blast.query_acc + '|' + filtered_blast.subject + \
                                                    "|" + filtered_blast['eval'].astype(str)
                 # Extract table from subject names
-                fields = (i for i in map(lambda x: x.split('|'), filtered_blast.subject.values))
+                def get_fields(row):
+                    """
+                    Parse the name of a gene correctly in case there are | in the gene symbol
+                    :param row:
+                    :return:
+                    """
+                    fields = row.split('|')
+                    if len(fields) == 10:
+                        pre_name = fields[:4]
+                        name = ['|'.join(fields[4:6])]
+                        post_name = fields[6:]
+                        fields = pre_name + name + post_name
+                    yield fields
+
+                fields = (i for i in map(get_fields, filtered_blast.subject.values))
+
                 temp_fields = open("{}._fields.temp".format(out_file), "w")
                 temp_fields.write("query,species,chromosome,prot_acc,symbol,start,end,strand,evalue\n")
                 for line in fields:
