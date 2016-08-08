@@ -204,32 +204,31 @@ class CGP:
                 filtered_blast.loc[:, 'subject'] = filtered_blast.query_acc + '|' + filtered_blast.subject + \
                                                    "|" + filtered_blast['eval'].astype(str)
                 # Extract table from subject names
-                def get_fields(row):
+
+                def get_fields(fields):
                     """
                     Parse the name of a gene correctly in case there are | in the gene symbol
                     :param row:
-                    :return:
+                    :return: list of parsed fields
                     """
-                    fields = row.split('|')
                     if len(fields) == 10:
                         pre_name = fields[:4]
                         name = ['|'.join(fields[4:6])]
                         post_name = fields[6:]
                         fields = pre_name + name + post_name
-                    yield fields
-
-                fields = (i for i in map(get_fields, filtered_blast.subject.values))
+                    return fields
 
                 temp_fields = open("{}._fields.temp".format(out_file), "w")
                 temp_fields.write("query,species,chromosome,prot_acc,symbol,start,end,strand,evalue\n")
-                for line in fields:
-                    temp_fields.write(','.join(line) + '\n')
+
+                for line in filtered_blast.subject.values:
+                    temp_fields.write(','.join(get_fields(line.split("|"))) + '\n')
                 temp_fields.close()
                 del filtered_blast
                 # Set table
                 sub_table = pd.read_csv("{}._fields.temp".format(out_file))
                 os.remove("{}._fields.temp".format(out_file))
-                # sub_table = pd.DataFrame(list(fields), columns=['query', 'species', 'chromosome', 'prot_acc',
+                # sub_table = pd.DataFrame(list(fields_list), columns=['query', 'species', 'chromosome', 'prot_acc',
                 #                                                 'symbol', 'start', 'end', 'strand'])
                 # In case there are spaces in species names, remove them
                 sub_table.loc[:, 'species'] = sub_table['species'].map(lambda x: str(x.replace(" ", "_")))
