@@ -17,17 +17,19 @@ def parse_gb():
     for each CDS with its chromosome, species and coordinates information
     :return: list of features
     """
-    records = (x for x in SeqIO.parse(GENOME_DB, 'genbank'))
+    # records = (x for x in SeqIO.parse(GENOME_DB, 'genbank'))
     features_list = []
-    for record in records:
+    for record in SeqIO.parse(GENOME_DB, 'genbank'):
         sp = record.annotations['organism']
         for feat in record.features:
             if feat.type == 'source':
                 # Try/except was here
                 if 'chromosome' in feat.qualifiers.keys():
                     chromosome_feat = feat.qualifiers['chromosome'][0]
+                elif feat.qualifiers['organelle'][0] == 'mitochondrion':
+                    chromosome_feat = 'mitochondrion'
                 else:
-                    chromosome_feat = 'NA'
+                    chromosome_feat = record.annotations['accessions'][0]
             elif feat.type == 'CDS' and 'protein_id' in feat.qualifiers.keys():
                 start_feat = feat.location.start.position
                 end_feat = feat.location.end.position
@@ -54,11 +56,13 @@ def parse_gb():
     feat_table['length'] = abs(feat_table['start'] - feat_table['end'])
     return feat_table
 
+
 def get_sources(gb):
     for record in SeqIO.parse(gb, 'genbank'):
         for feature in record.features:
             if feature.type == 'source':
                 yield record
+
 
 def get_assembly_info(record):
     spp = record.annotations['organism']
@@ -71,7 +75,7 @@ def get_assembly_info(record):
             if 'chromosome' in feature.qualifiers.keys():
                 chrom = feature.qualifiers['chromosome'][0]
             else:
-                chrom = np.nan
+                chrom = accession
             taxid = feature.qualifiers['db_xref'][0].split(":")[1]
             length = feature.location.end.real
             annotations = [spp, chrom, taxid, gi, accession, assembly, length]
@@ -214,6 +218,7 @@ else:
     with futures.ProcessPoolExecutor(CPUS) as pool:
         sp_tables = pool.map(remove_overlaps_sp, list(set(out_data.species.values)))
     all_sp_table = pd.concat(sp_tables)
+    all_sp_table = all_sp_table.loc[all_sp_table['chromosome'] != "Unknown"]
     all_sp_table.to_csv('genes_parsed.csv')
     del out_data
 
