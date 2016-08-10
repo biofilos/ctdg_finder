@@ -29,10 +29,11 @@ if not os.path.exists("{}/done".format(out_dir)):
 # Generate species-specific proteomes
 for gene in SeqIO.parse(all_seqs, 'fasta'):
     sp_name = gene.name.split("|")[0]
-    fasta_name = "{}/{}.fasta".format(out_dir, sp_name)
-    fileO = open(fasta_name, 'a')
-    SeqIO.write(gene, fileO, 'fasta')
-    fileO.close()
+    if not (os.path.exists("{}/{}.blast_out".format(out_dir,sp_name)) or os.path.exists("{}/{}.blast".format(out_dir, sp_name))):
+        fasta_name = "{}/{}.fasta".format(out_dir, sp_name)
+        fileO = open(fasta_name, 'a')
+        SeqIO.write(gene, fileO, 'fasta')
+        fileO.close()
 
 # Run Blast step for each proteome
 for input_file in glob("{}/*.fasta".format(out_dir)):
