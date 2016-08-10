@@ -30,10 +30,9 @@ if not os.path.exists("{}/done".format(out_dir)):
 for gene in SeqIO.parse(all_seqs, 'fasta'):
     sp_name = gene.name.split("|")[0]
     fasta_name = "{}/{}.fasta".format(out_dir, sp_name)
-    if not os.path.exists(fasta_name):
-        fileO = open(fasta_name, 'a')
-        SeqIO.write(gene, fileO, 'fasta')
-        fileO.close()
+    fileO = open(fasta_name, 'a')
+    SeqIO.write(gene, fileO, 'fasta')
+    fileO.close()
 
 # Run Blast step for each proteome
 for input_file in glob("{}/*.fasta".format(out_dir)):
@@ -46,4 +45,4 @@ for input_file in glob("{}/*.fasta".format(out_dir)):
 
     sub_table = cgp.blast_parse(output_file, 2, [sp], True, True)
     for out in [input_file, output_file, output_file + "_filtered"]:
-        os.rename(out, out.replace(out_dir.split('/')[-1], "done/{}".format(out_dir.split('/')[-1])))
+        os.rename(out, out.replace(out.split('/')[-1], "done/{}".format(out.split('/')[-1])))

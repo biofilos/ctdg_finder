@@ -162,7 +162,7 @@ class CGP:
         :return: data frame
         """
         if len(sp_list) > 0:
-            print("Running analysis with species:")
+            print("Parsing blast output for species:")
             print("\n".join(sp_list))
         else:
             print("Running analysis with all species")
@@ -235,14 +235,13 @@ class CGP:
                 # Only consider hits from selected species
                 if len(sp_list) > 0:
                     sub_table = sub_table.loc[sub_table['species'].isin(sp_list)]
-                sub_table.loc[sub_table['start'].notnull(),
-                                            'start'] = sub_table.loc[sub_table['start'].notnull(), 'start'].astype(int)
-                sub_table.loc[sub_table['end'].notnull(), 'end'] = sub_table.loc[sub_table['end'].notnull()].astype(int)
-                sub_table.loc[:, 'strand'] = sub_table['strand'].astype(int)
+                sub_table.loc[:, 'start'] = sub_table['start'].astype(float)
+                sub_table.loc[:, 'end'] = sub_table['end'].astype(float)
+                sub_table.loc[:, 'strand'] = sub_table['strand'].astype(float)
                 sub_table.loc[:, 'Length'] = abs(sub_table['end'] - sub_table['start'])
                 sub_table.sort_values(by=['species', 'chromosome', 'start'], inplace=True)
                 # Remove hits in non-assembled chromosomes (almost deprecated)
-                sub_table = sub_table.loc[sub_table['chromosome'] != 'NA']
+                # sub_table = sub_table.loc[sub_table['chromosome'] != 'NA']
                 sub_table.to_csv("{}_out".format(out_file))
                 assert sub_table.shape[0] > 0, "Not enough blast hits. Terminating"
                 # Return filtered blast results

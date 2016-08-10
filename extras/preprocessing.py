@@ -8,10 +8,10 @@ from concurrent import futures
 Entrez.email = 'juan.f.ortiz@vanderbilt.edu'
 
 GENOME_DB = sys.argv[1]
-CPUS = 2
+CPUS = int(sys.argv[2])
 
 
-def parse_gb():
+def parse_gb(record):
     """
     Parse GenBank annotation files and returns a list of annotation features
     for each CDS with its chromosome, species and coordinates information
@@ -19,38 +19,39 @@ def parse_gb():
     """
     # records = (x for x in SeqIO.parse(GENOME_DB, 'genbank'))
     features_list = []
-    for record in SeqIO.parse(GENOME_DB, 'genbank'):
-        sp = record.annotations['organism']
-        for feat in record.features:
-            if feat.type == 'source':
-                # Try/except was here
-                if 'chromosome' in feat.qualifiers.keys():
-                    chromosome_feat = feat.qualifiers['chromosome'][0]
-                elif feat.qualifiers['organelle'][0] == 'mitochondrion':
-                    chromosome_feat = 'mitochondrion'
+    # for record in SeqIO.parse(GENOME_DB, 'genbank'):
+    sp = record.annotations['organism']
+    for feat in record.features:
+        if feat.type == 'source':
+            # Try/except was here
+            if 'chromosome' in feat.qualifiers.keys():
+                chromosome_feat = feat.qualifiers['chromosome'][0]
+            elif 'organelle' in feat.qualifiers.keys() and feat.qualifiers['organelle'][0] == 'mitochondrion':
+                chromosome_feat = 'mitochondrion'
+            else:
+                chromosome_feat = record.annotations['accessions'][0]
+        elif feat.type == 'CDS' and 'protein_id' in feat.qualifiers.keys():
+            start_feat = feat.location.start.position
+            end_feat = feat.location.end.position
+            strand_feat = feat.location.strand
+            acc_feat = feat.qualifiers['protein_id'][0]
+            try:
+                symbol_feat = feat.qualifiers['gene'][0]
+            except KeyError:
+                symbol_feat = acc_feat
+            symbol_feat = symbol_feat.replace(' ', '--')
+            # Try/except was here
+            if 'product' in feat.qualifiers.keys():
+                name = feat.qualifiers['product'][0]
+            else:
+                if 'exception' in feat.qualifiers.keys():
+                    name = feat.qualifiers['exception'][0]
+                elif 'gene' in feat.qualifiers.keys():
+                    name = feat.qualifiers['gene'][0]
                 else:
-                    chromosome_feat = record.annotations['accessions'][0]
-            elif feat.type == 'CDS' and 'protein_id' in feat.qualifiers.keys():
-                start_feat = feat.location.start.position
-                end_feat = feat.location.end.position
-                strand_feat = feat.location.strand
-                acc_feat = feat.qualifiers['protein_id'][0]
-                try:
-                    symbol_feat = feat.qualifiers['gene'][0]
-                except KeyError:
-                    symbol_feat = acc_feat
-                # Try/except was here
-                if 'product' in feat.qualifiers.keys():
-                    name = feat.qualifiers['product'][0]
-                else:
-                    if 'exception' in feat.qualifiers.keys():
-                        name = feat.qualifiers['exception'][0]
-                    elif 'gene' in feat.qualifiers.keys():
-                        name = feat.qualifiers['gene'][0]
-                    else:
-                        name = acc_feat
-                features_list.append([start_feat, end_feat, strand_feat, acc_feat,
-                                      chromosome_feat, sp, symbol_feat, name])
+                    name = acc_feat
+            features_list.append([start_feat, end_feat, strand_feat, acc_feat,
+                                  chromosome_feat, sp, symbol_feat, name])
     feat_table = pd.DataFrame(features_list, columns=['start', 'end', 'strand', 'acc', 'chromosome',
                                                       'species', 'symbol', 'name']).set_index('acc')
     feat_table['length'] = abs(feat_table['start'] - feat_table['end'])
@@ -199,8 +200,11 @@ def seq_column(accession):
 
 # Parse Genbank
 if not os.path.exists('genes_cds.csv'):
-    out_data = parse_gb()
+    with futures.ProcessPoolExecutor(CPUS) as pool:
+        out_data_lst = pool.map(parse_gb, SeqIO.parse(GENOME_DB, 'genbank'))
+    out_data = pd.concat(out_data_lst)
     out_data = out_data.loc[~(out_data['name'].map(lambda x: 'isoform X' in x))]
+    out_data = out_data.loc[~(out_data['chromosome'].isin(['mitochondrion', 'unknown']))]
     # Save full annotation
     out_data['species'] = out_data['species'].map(lambda x: x.replace(' ', '_'))
     out_data.to_csv('genes_cds.csv')
@@ -218,7 +222,6 @@ else:
     with futures.ProcessPoolExecutor(CPUS) as pool:
         sp_tables = pool.map(remove_overlaps_sp, list(set(out_data.species.values)))
     all_sp_table = pd.concat(sp_tables)
-    all_sp_table = all_sp_table.loc[all_sp_table['chromosome'] != "Unknown"]
     all_sp_table.to_csv('genes_parsed.csv')
     del out_data
 
