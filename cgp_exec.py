@@ -235,9 +235,9 @@ class CGP:
                 # Only consider hits from selected species
                 if len(sp_list) > 0:
                     sub_table = sub_table.loc[sub_table['species'].isin(sp_list)]
-                sub_table.loc[:, 'start'] = sub_table['start'].astype(float)
-                sub_table.loc[:, 'end'] = sub_table['end'].astype(float)
-                sub_table.loc[:, 'strand'] = sub_table['strand'].astype(float)
+                sub_table.loc[:, 'start'] = sub_table['start'].astype(int)
+                sub_table.loc[:, 'end'] = sub_table['end'].astype(int)
+                sub_table.loc[:, 'strand'] = sub_table['strand'].astype(int)
                 sub_table.loc[:, 'Length'] = abs(sub_table['end'] - sub_table['start'])
                 sub_table.sort_values(by=['species', 'chromosome', 'start'], inplace=True)
                 # Remove hits in non-assembled chromosomes (almost deprecated)

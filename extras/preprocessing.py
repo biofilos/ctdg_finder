@@ -1,4 +1,5 @@
 import os
+from copy import copy
 import time
 import sys
 import pandas as pd
@@ -66,13 +67,14 @@ def get_sources(gb):
 
 
 def get_assembly_info(record):
-    spp = record.annotations['organism']
-    gi = record.annotations['gi']
-    assembly_record = Entrez.read(Entrez.elink(dbfrom='nucleotide', db='assembly', id=gi, rettype='gb'))
-    assembly = assembly_record[0]['LinkSetDb'][0]['Link'][0]['Id']
-    accession = record.id
     for feature in record.features:
         if feature.type == 'source':
+            spp = copy(record.annotations['organism'])
+            gi = copy(record.annotations['gi'])
+            assembly_record = Entrez.read(Entrez.elink(dbfrom='nucleotide', db='assembly',
+                                                       id=gi, rettype='gb'))
+            assembly = assembly_record[0]['LinkSetDb'][0]['Link'][0]['Id']
+            accession = copy(record.id)
             if 'chromosome' in feature.qualifiers.keys():
                 chrom = feature.qualifiers['chromosome'][0]
             else:
@@ -272,7 +274,7 @@ del genes_selected
 
 
 with futures.ProcessPoolExecutor(CPUS) as pool:
-    assembly_list = pool.map(get_assembly_info, get_sources(GENOME_DB))
+    assembly_list = pool.map(get_assembly_info, SeqIO.parse(GENOME_DB, 'genbank'))
 
 assembly_table = pd.DataFrame(list(assembly_list), columns=['sp', 'chromosome', 'taxid',
                                                             'GI', 'chr_acc', 'Assembly', 'length'])
