@@ -67,23 +67,24 @@ def get_sources(gb):
 
 
 def get_assembly_info(record):
-    for feature in record.features:
-        if feature.type == 'source':
-            spp = copy(record.annotations['organism'])
-            gi = copy(record.annotations['gi'])
-            assembly_record = Entrez.read(Entrez.elink(dbfrom='nucleotide', db='assembly',
-                                                       id=gi, rettype='gb'))
-            assembly = assembly_record[0]['LinkSetDb'][0]['Link'][0]['Id']
-            accession = copy(record.id)
-            if 'chromosome' in feature.qualifiers.keys():
-                chrom = feature.qualifiers['chromosome'][0]
-            else:
-                chrom = accession
-            taxid = feature.qualifiers['db_xref'][0].split(":")[1]
-            length = feature.location.end.real
-            annotations = [spp, chrom, taxid, gi, accession, assembly, length]
-            assembly = annotations
-            return assembly
+    source = [feature for feature in record.features if feature.type == 'source']
+    if len(source) > 0:
+        feat = source[0]
+        spp = record.annotations['organism']
+        gi = record.annotations['gi']
+        assembly_record = Entrez.read(Entrez.elink(dbfrom='nucleotide', db='assembly',
+                                                   id=gi, rettype='gb'))
+        assembly = assembly_record[0]['LinkSetDb'][0]['Link'][0]['Id']
+        accession = copy(record.id)
+        if 'chromosome' in feat.qualifiers.keys():
+            chrom = feat.qualifiers['chromosome'][0]
+        else:
+            chrom = accession
+        taxid = feat.qualifiers['db_xref'][0].split(":")[1]
+        length = feat.location.end.real
+        annotations = [spp, chrom, taxid, gi, accession, assembly, length]
+        assembly = annotations
+        return assembly
 
 
 def sp_loop(in_table, columns):
@@ -206,7 +207,7 @@ if not os.path.exists('genes_cds.csv'):
         out_data_lst = pool.map(parse_gb, SeqIO.parse(GENOME_DB, 'genbank'))
     out_data = pd.concat(out_data_lst)
     out_data = out_data.loc[~(out_data['name'].map(lambda x: 'isoform X' in x))]
-    out_data = out_data.loc[~(out_data['chromosome'].isin(['mitochondrion', 'unknown']))]
+    out_data = out_data.loc[~(out_data['chromosome'].isin(['mitochondrion', 'unknown', 'Unknown']))]
     # Save full annotation
     out_data['species'] = out_data['species'].map(lambda x: x.replace(' ', '_'))
     out_data.to_csv('genes_cds.csv')
@@ -272,17 +273,56 @@ del all_sp_table
 del genes_selected
 # rec_list = (x for x in SeqIO.parse(GENOME_DB, 'genbank') if )
 
+# Assembly table
+chrom_dict, annotations = {}, []
+for record in SeqIO.parse(GENOME_DB, 'gb'):
+    record.seq = ''
+    source = [feature for feature in record.features if feature.type == 'source']
+    if len(source) > 0:
+        feat = source[0]
+        length = feat.location.end.real
+        spp = record.annotations['organism']
+        accession = record.id
+        if 'chromosome' in feat.qualifiers.keys():
+            chrom = feat.qualifiers['chromosome'][0]
+        else:
+            chrom = accession
+        if spp not in chrom_dict:
+            chrom_dict[spp] = {}
+        if chrom not in chrom_dict[spp]:
+            print("initializing {}: {}".format(spp, chrom))
+            chrom_dict[spp][chrom] = {'length': 0, 'annotation': None}
 
-with futures.ProcessPoolExecutor(CPUS) as pool:
-    assembly_list = pool.map(get_assembly_info, SeqIO.parse(GENOME_DB, 'genbank'))
+        if length > chrom_dict[spp][chrom]['length']:
+            print(length, chrom_dict[spp][chrom])
+            chrom_dict[spp][chrom]['length'] = length
+            gi = record.annotations['gi']
+            # print(gi)
+            try:
+                assembly_record = Entrez.read(Entrez.elink(dbfrom='nucleotide', db='assembly',
+                                                           id=gi, rettype='gb'))
+                assembly = assembly_record[0]['LinkSetDb'][0]['Link'][0]['Id']
+            except RuntimeError:
+                print("Trying to fetch assembly number again ({}, {})".format(spp,chrom))
+                assembly_record = Entrez.read(Entrez.elink(dbfrom='nucleotide', db='assembly',
+                                                           id=gi, rettype='gb'))
+                assembly = assembly_record[0]['LinkSetDb'][0]['Link'][0]['Id']
+            taxid = feat.qualifiers['db_xref'][0].split(":")[1]
 
-assembly_table = pd.DataFrame(list(assembly_list), columns=['sp', 'chromosome', 'taxid',
-                                                            'GI', 'chr_acc', 'Assembly', 'length'])
+            chrom_dict[spp][chrom]['annotation'] = [spp, chrom, taxid, gi, accession, assembly, length]
+            print(chrom_dict[spp][chrom]['annotation'])
+            # print(chrom_dict[spp])
+
+for sp in chrom_dict:
+    for chrom in chrom_dict[sp]:
+        annotations.append(chrom_dict[sp][chrom]['annotation'])
+
+assembly_table = pd.DataFrame(list(annotations), columns=['sp', 'chromosome', 'taxid',
+                                                          'GI', 'chr_acc', 'Assembly', 'length'])
 assembly_table['sp'] = assembly_table['sp'].map(lambda x: x.replace(' ', '_'))
 
 assembly_table.to_csv('chromosomes.csv')
 print("Assembly file, generated")
-
 
 print("DONE")
 
