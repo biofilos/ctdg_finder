@@ -239,6 +239,7 @@ class CGP:
                 sub_table.loc[:, 'end'] = sub_table['end'].astype(int)
                 sub_table.loc[:, 'strand'] = sub_table['strand'].astype(int)
                 sub_table.loc[:, 'Length'] = abs(sub_table['end'] - sub_table['start'])
+                sub_table.loc[:, 'chromosome'] = sub_table['chromosome'].astype(str)
                 sub_table.sort_values(by=['species', 'chromosome', 'start'], inplace=True)
                 # Remove hits in non-assembled chromosomes (almost deprecated)
                 # sub_table = sub_table.loc[sub_table['chromosome'] != 'NA']
@@ -283,7 +284,7 @@ class CGP:
         :return:
         """
         ms_compiled_temp = self.ms_compiled
-        table = ms_compiled_temp.loc[~(ms_compiled_temp['cluster'].isin(["na", "0"]))]
+        table = ms_compiled_temp.loc[~(ms_compiled_temp['cluster'].isin(["na_ms", "na_95",  "0"]))]
         only_rows = [sptable for sptable in self.sp_loop(table, ["species", "chromosome", "cluster"])]
         return only_rows
 
@@ -319,15 +320,15 @@ class CGP:
         accs_for_deletion = pd.merge(ms_compiled, for_deletion, how='inner',
                                      on=['species', 'chromosome', 'cluster'])['prot_acc'].values
         # Remove annotation for cluster name and cluster order
-        ms_compiled.loc[ms_compiled['prot_acc'].isin(accs_for_deletion), ['cluster', 'order']] = 'na'
+        ms_compiled.loc[ms_compiled['prot_acc'].isin(accs_for_deletion), ['cluster', 'order']] = 'na_95'
         ms_compiled.set_index("query", inplace=True)
         ms_compiled.to_csv("{0}/report/{0}_genes.csv".format(self.name_family))
-        new_numbers.loc[new_numbers['paralogs'] < new_numbers['perc95_gw'], 'cluster'] = 'na'
+        new_numbers.loc[new_numbers['paralogs'] < new_numbers['perc95_gw'], 'cluster'] = 'na_95'
         new_numbers.set_index("species", inplace=True)
 
         # # # Save cluster tables
         new_numbers.to_csv("{0}/report/{0}_numbers.csv".format(self.name_family))
-        new_numbers.loc[~(new_numbers['cluster'].isin(['na', '0', 0]))].to_csv(
+        new_numbers.loc[~(new_numbers['cluster'].isin(['na_95', 'na_ms', '0', 0]))].to_csv(
             "{0}/report/{0}_numbers_clean.csv".format(self.name_family))
 
     def delete_intermediates(self):
@@ -392,12 +393,12 @@ def pre_blast(cpu, ref, all_genes, name_family, sp):
 def meanshift_cluster(ms_sp_table):
     """
         Extract clusters from annotation using the mean shift algorithm
-        :param ms_sp_table: hmmer hits table for each species/chromosome
-        :return: annotated hmmer table
+        :param ms_sp_table: blast hits table for each species/chromosome
+        :return: annotated blast table
         """
     # Set variables
     sp_mean_shift = ms_sp_table['species'].values[0]
-    chrom_mean_shift = ms_sp_table['chromosome'].values[0]
+    chrom_mean_shift = str(ms_sp_table['chromosome'].values[0])
     proteome = cgp.all_genes.loc[(cgp.all_genes['species'] == sp_mean_shift) &
                                  (cgp.all_genes['chromosome'] == chrom_mean_shift)]
     # If there is only one gene, set the cluster to zero -> single-copy gene in the chromosome
@@ -419,7 +420,10 @@ def meanshift_cluster(ms_sp_table):
         # Set the MeanShift
         ms = MeanShift(bandwidth=band_width)
         # Execute the MeanShift algorithm to the coordinates
-        ms.fit(gene_starts)
+        try:
+            ms.fit(gene_starts)
+        except ValueError:
+            print(band_width, sp_mean_shift, chrom_mean_shift, len(proteome))
         # The labels are the position of the members of each cluster in the coordinates array
         labels = ms.labels_
         labels_unique = np.unique(labels)
@@ -446,9 +450,9 @@ def meanshift_cluster(ms_sp_table):
             else:
                 # If there is only one gene in the "cluster", assign name and order to zero
                 ms_sp_table.loc[ms_sp_table['start'].isin(cluster),
-                                'cluster'] = 'na'
+                                'cluster'] = 'na_ms'
                 ms_sp_table.loc[ms_sp_table['start'].isin(cluster),
-                                'order'] = 'na'
+                                'order'] = 'na_ms'
     # Return annotated table per species (useful for parallelization)
     return ms_sp_table
 
