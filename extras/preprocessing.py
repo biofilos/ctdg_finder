@@ -35,6 +35,9 @@ def parse_gb(record):
             start_feat = feat.location.start.position
             end_feat = feat.location.end.position
             strand_feat = feat.location.strand
+            if strand_feat not in [1, -1]:
+                # Skip gene that has no strand information
+                continue
             acc_feat = feat.qualifiers['protein_id'][0]
             try:
                 symbol_feat = feat.qualifiers['gene'][0]
@@ -310,8 +313,6 @@ for record in SeqIO.parse(GENOME_DB, 'gb'):
             taxid = feat.qualifiers['db_xref'][0].split(":")[1]
 
             chrom_dict[spp][chrom]['annotation'] = [spp, chrom, taxid, gi, accession, assembly, length]
-            print(chrom_dict[spp][chrom]['annotation'])
-            # print(chrom_dict[spp])
 
 for sp in chrom_dict:
     for chrom in chrom_dict[sp]:
