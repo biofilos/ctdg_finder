@@ -43,3 +43,9 @@ extras/hits_dictionary.py.orig
 hoxes_mm_evx/
 one_sample/
 scaffolds_out/
+globins_metazoa/
+hox_metazoa.ipynb
+hox_metazoa/
+metazoa_out/
+p_atlas_similarity.ipynb
+timing/
