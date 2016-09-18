@@ -32,7 +32,7 @@ The following are the minimal options that should be specified
 * \-(-b)last_samples: number of samples to build the empirical distribution of paralogs.  
 * \-(-d)b: database: directory whith the required blast database and annotation tables (all_seqs.fa, genes_parsed.csv, etc)  
 
-A minimal run would look like this: `$ python ctdg_finder.py \--ref-seq path/to/reference.fa \--name_family gene_family_name \--blast_samples 1000 --db mini`  
+A minimal run would look like this: `$ python ctdg_finder.py --ref-seq path/to/reference.fa --name_family gene_family_name --blast_samples 1000 --db mini`  
 
 Optional parameters  
 
