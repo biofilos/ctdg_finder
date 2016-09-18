@@ -8,8 +8,8 @@ from Bio import Entrez, SeqIO
 from concurrent import futures
 Entrez.email = 'juan.f.ortiz@vanderbilt.edu'
 
-GENOME_DB = sys.argv[1]
-CPUS = int(sys.argv[2])
+GENOME_DB = "genomes.gb"
+CPUS = int(sys.argv[1])
 
 
 def parse_gb(record):
