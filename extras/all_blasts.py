@@ -5,13 +5,13 @@ import os
 from Bio import SeqIO
 
 sys.path.append("..")
-from cgp_exec import CGP
+from ctdg_finder import CTDG
 
 '''
-This script runs the blast step of CGPFinder.
+This script runs the blast step of CTDGFinder.
 Importantly, the sequence must be named Species_name.fa
 In that way, the species name can be matched to the table.
-The reason for this filter (the [sp] argument in cgp.blast.parse)
+The reason for this filter (the [sp] argument in ctdg.blast.parse)
 is that for the sampling process, only the blast hits for the same species
 are needed
 '''
@@ -37,13 +37,13 @@ for gene in SeqIO.parse(all_seqs, 'fasta'):
 
 # Run Blast step for each proteome
 for input_file in glob("{}/*.fasta".format(out_dir)):
-    cgp = CGP(name_family="all_blast", evalue=1, out_dir=out_dir, db=all_seqs,
+    ctdg = CTDG(name_family="all_blast", evalue=1, out_dir=out_dir, db=all_seqs,
               blast_samples=0, sp=[], ref_sequence=input_file)
     output_file = input_file.replace('fasta', 'blast')
     sp = input_file.replace('.fasta', '').split('/')[-1]
     if not os.path.exists(output_file):
-        cgp.blast_exe(cpus, cgp.ref_sequence, all_seqs, output_file)
+        ctdg.blast_exe(cpus, ctdg.ref_sequence, all_seqs, output_file)
 
-    sub_table = cgp.blast_parse(output_file, 2, [sp], True, True)
+    sub_table = ctdg.blast_parse(output_file, 2, [sp], True, True)
     for out in [input_file, output_file, output_file + "_filtered"]:
         os.rename(out, out.replace(out.split('/')[-1], "done/{}".format(out.split('/')[-1])))

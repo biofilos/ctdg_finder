@@ -19,8 +19,8 @@ from termcolor import colored
 
 
 
-# Define class CGP
-class CGP:
+# Define class CTDG
+class CTDG:
     def __init__(self, name_family, evalue, out_dir, db, ref_sequence, blast_samples, sp):
         self.evalue = evalue
         self.sp = sp
@@ -89,7 +89,7 @@ class CGP:
 
     def select_species(self):
         """
-        Check if the specified species are included in the CGPFinder database
+        Check if the specified species are included in the CTDGFinder database
         and format a list in the class
         :return:
         """
@@ -295,7 +295,7 @@ class CGP:
         assert len(family_list_filtered) > 0, "NO CLUSTERS in the {} family".format(self.name_family)
         return pd.DataFrame(family_list_filtered,
                             columns=['species', 'chromosome', 'cluster', 'start', 'end',
-                                     'paralogs', 'total_genes', 'proportion_paralogs'])
+                                     'duplicatess', 'total_genes', 'proportion_duplicatess'])
 
     @property
     def cluster_rows(self):
@@ -314,7 +314,7 @@ class CGP:
     def add_samples(self, new_numbers):
         ms_compiled = self.ms_compiled
         # Identify clusters that didn't make it through the threshold
-        for_deletion = new_numbers.loc[new_numbers['paralogs'] < new_numbers['perc95_gw'],
+        for_deletion = new_numbers.loc[new_numbers['duplicatess'] < new_numbers['perc95_gw'],
                                        ['species', 'chromosome', 'cluster']]
         # Get accession numbers for the genes that are going to be re annotated
         accs_for_deletion = pd.merge(ms_compiled, for_deletion, how='inner',
@@ -323,7 +323,7 @@ class CGP:
         ms_compiled.loc[ms_compiled['prot_acc'].isin(accs_for_deletion), ['cluster', 'order']] = 'na_95'
         ms_compiled.set_index("query", inplace=True)
         ms_compiled.to_csv("{0}/report/{0}_genes.csv".format(self.name_family))
-        new_numbers.loc[new_numbers['paralogs'] < new_numbers['perc95_gw'], 'cluster'] = 'na_95'
+        new_numbers.loc[new_numbers['duplicatess'] < new_numbers['perc95_gw'], 'cluster'] = 'na_95'
         new_numbers.set_index("species", inplace=True)
 
         # # # Save cluster tables
@@ -380,12 +380,12 @@ class CGP:
 
 def pre_blast(cpu, ref, all_genes, name_family, sp):
     print("Running blast search step to extend query")
-    cgp.blast_exe(cpu, ref, all_genes, "{0}/pre_{0}.blast".format(name_family))
-    pre_family_blast = cgp.blast_parse("{0}/pre_{0}.blast".format(name_family), acc_col=2, tab=True,
+    CTDG.blast_exe(cpu, ref, all_genes, "{0}/pre_{0}.blast".format(name_family))
+    pre_family_blast = CTDG.blast_parse("{0}/pre_{0}.blast".format(name_family), acc_col=2, tab=True,
                                        sp_list=sp, for_dict=False)
     hits = pre_family_blast['prot_acc'].values
     with open("{0}/{0}_ext_query.fa".format(name_family), "w") as fileO:
-        for seq in SeqIO.parse(cgp.all_genes_fasta, 'fasta'):
+        for seq in SeqIO.parse(CTDG.all_genes_fasta, 'fasta'):
             if seq.name.split("|")[2] in hits:
                 SeqIO.write(seq, fileO, "fasta")
 
@@ -399,8 +399,8 @@ def meanshift_cluster(ms_sp_table):
     # Set variables
     sp_mean_shift = ms_sp_table['species'].values[0]
     chrom_mean_shift = str(ms_sp_table['chromosome'].values[0])
-    proteome = cgp.all_genes.loc[(cgp.all_genes['species'] == sp_mean_shift) &
-                                 (cgp.all_genes['chromosome'] == chrom_mean_shift)]
+    proteome = CTDG.all_genes.loc[(CTDG.all_genes['species'] == sp_mean_shift) &
+                                 (CTDG.all_genes['chromosome'] == chrom_mean_shift)]
     # If there is only one gene, set the cluster to zero -> single-copy gene in the chromosome
     if len(ms_sp_table) == 1:
         ms_sp_table.loc[:, 'cluster'] = 0
@@ -442,7 +442,7 @@ def meanshift_cluster(ms_sp_table):
             if len(proto_cluster) > 1:
                 # Annotate name (<name of the family>-<chromosome>_consecutive number
                 ms_sp_table.loc[ms_sp_table['start'].isin(cluster),
-                                'cluster'] = "{}-{}_{}".format(cgp.name_family, chrom_mean_shift, cluster_number)
+                                'cluster'] = "{}-{}_{}".format(CTDG.name_family, chrom_mean_shift, cluster_number)
                 # Annotate order of genes "from start of the chromosome, according to annotation
                 ms_sp_table.loc[ms_sp_table['start'].isin(cluster),
                                 'order'] = range(1, len(cluster) + 1)
@@ -459,7 +459,7 @@ def meanshift_cluster(ms_sp_table):
 
 def gene_numbers(sp_table, all_genes_tab):
     """
-    Count the number of paralogs, total number of genes and proportion of paralogs
+    Count the number of duplicatess, total number of genes and proportion of duplicatess
     for each cluster
     :param all_genes_tab: complete gene annotation
     :param sp_table: blast table
@@ -468,9 +468,9 @@ def gene_numbers(sp_table, all_genes_tab):
     sp_numbers = sp_table['species'].values[0]
     chromosome = sp_table['chromosome'].values[0]
     cluster = sp_table['cluster'].values[0]
-    paralog_genes = len(sp_table)
-    # If there is more than one paralog:
-    if paralog_genes > 1:
+    duplicates_genes = len(sp_table)
+    # If there is more than one duplicates:
+    if duplicates_genes > 1:
         start = sp_table['start'].min()
         end = sp_table['end'].max()
         # Count the genes in that chromosomal region
@@ -478,62 +478,62 @@ def gene_numbers(sp_table, all_genes_tab):
                                             (all_genes_tab['chromosome'] == chromosome) &
                                             (all_genes_tab['start'] >= start) &
                                             (all_genes_tab['end'] <= end)])
-        # Calculate proportion of paralogs
-        proportion_paralogs = paralog_genes / total_genes
+        # Calculate proportion of duplicatess
+        proportion_duplicatess = duplicates_genes / total_genes
         # Return the results per cluster (useful for parallelization
         gene_numbers_list = [sp_numbers, chromosome, cluster, start, end,
-                             paralog_genes, total_genes, proportion_paralogs]
+                             duplicates_genes, total_genes, proportion_duplicatess]
         return gene_numbers_list
     else:
         # If there are no genes in the cluster, return None
         return None
 
 
-def grab_paralogs(acc_list, paralogs, evalue):
+def grab_duplicatess(acc_list, duplicatess, evalue):
     """
-    Given a list of accession numbers, get the maximum number of paralogs between them
+    Given a list of accession numbers, get the maximum number of duplicatess between them
     :param evalue: reference E-value
     :param acc_list: accession numbers list
-    :param paralogs: Dictionary with parsed blast results for the chromosome being sampled
-    :return: max number of paralogs
+    :param duplicatess: Dictionary with parsed blast results for the chromosome being sampled
+    :return: max number of duplicatess
     """
-    paralogs_list = []
-    # print(len(paralogs))
+    duplicatess_list = []
+    # print(len(duplicatess))
     # Retain only blast hits less than or equal to a given E-value
-    paralogs_evalue = {}
-    for acc in paralogs:
-        paralog_eval_list = []
-        for hit in paralogs[acc]:
+    duplicatess_evalue = {}
+    for acc in duplicatess:
+        duplicates_eval_list = []
+        for hit in duplicatess[acc]:
             if hit[1] <= evalue:
-                paralog_eval_list.append(hit[0])
-        paralogs_evalue[acc] = paralog_eval_list
-        # eval_removed = len(paralogs[acc]) - len(paralogs_evalue[acc])
+                duplicates_eval_list.append(hit[0])
+        duplicatess_evalue[acc] = duplicates_eval_list
+        # eval_removed = len(duplicatess[acc]) - len(duplicatess_evalue[acc])
         # if eval_removed > 0:
         #    print("{}: Paralogs removed by E-value {}: {}".format(acc, evalue, eval_removed))
-    # paralogs = json.loads(open('{}/{}_{}.json'.format(blast_dir, sp.replace(' ', '_'), chrom)).read())
-    # If there are no genes in the sample interval, return 0 paralogs
+    # duplicatess = json.loads(open('{}/{}_{}.json'.format(blast_dir, sp.replace(' ', '_'), chrom)).read())
+    # If there are no genes in the sample interval, return 0 duplicatess
     if len(acc_list) == 0:
-        paralogs_max = 0
-    # If there are more than one, return the maximum number of paralogs
+        duplicatess_max = 0
+    # If there are more than one, return the maximum number of duplicatess
     elif type(acc_list) == list:
         for acc in acc_list:
             # If the accession is not in the query, it had no blast hits with any sequence
-            if acc in paralogs_evalue.keys():
-                paralogs_list.extend(list(set(paralogs_evalue[acc]).intersection(acc_list)))
-        # If more than zero paralogs were found
-        if len(paralogs_list) > 0:
-            paralogs_max = Counter(paralogs_list).most_common(1)[0][1]
+            if acc in duplicatess_evalue.keys():
+                duplicatess_list.extend(list(set(duplicatess_evalue[acc]).intersection(acc_list)))
+        # If more than zero duplicatess were found
+        if len(duplicatess_list) > 0:
+            duplicatess_max = Counter(duplicatess_list).most_common(1)[0][1]
         else:
-            paralogs_max = 0
+            duplicatess_max = 0
     else:
-        paralogs_max = Counter(paralogs_evalue[acc_list]).most_common(1)[0][1]
-    return paralogs_max
+        duplicatess_max = Counter(duplicatess_evalue[acc_list]).most_common(1)[0][1]
+    return duplicatess_max
 
 
 def blast_sampling(pre_cluster_table, gw, db, name_family, blast_samples, genomes, all_genes_blast, evalue):
     sp = pre_cluster_table.loc[:, 'species'].values[0]
     # Load blast hits with queries from the species
-    sp_paralogs = json.loads(open("{}/blasts/{}.json".format(db, sp)).read())
+    sp_duplicatess = json.loads(open("{}/blasts/{}.json".format(db, sp)).read())
     cluster = pre_cluster_table.loc[:, 'cluster'].values[0]
     cluster_length = abs(pre_cluster_table.loc[:, 'end'].values[0] - pre_cluster_table.loc[:, 'start'].values[0])
     # Set output directory depending of the type of sampling
@@ -552,7 +552,7 @@ def blast_sampling(pre_cluster_table, gw, db, name_family, blast_samples, genome
     max_paras_list = []
     for i in range(1, blast_samples + 1):
         if gw:
-            chromosome = np.random.choice(cgp.genomes.loc[genomes.sp == sp, 'chromosome'].values)
+            chromosome = np.random.choice(CTDG.genomes.loc[genomes.sp == sp, 'chromosome'].values)
         else:
             chromosome = pre_cluster_table.loc[:, 'chromosome'].values[0]
 
@@ -571,29 +571,29 @@ def blast_sampling(pre_cluster_table, gw, db, name_family, blast_samples, genome
                                              (all_genes_blast.start >= random_start) &
                                              (all_genes_blast.end <= random_end)].index.values
         if len(proteome_slice) > 0:
-            chrom_paralogs = sp_paralogs[chromosome]
-            max_paralogs = grab_paralogs(list(proteome_slice), chrom_paralogs, evalue)
-            current_sample = [i, sp, chromosome, random_start, random_end, max_paralogs]
+            chrom_duplicatess = sp_duplicatess[chromosome]
+            max_duplicatess = grab_duplicatess(list(proteome_slice), chrom_duplicatess, evalue)
+            current_sample = [i, sp, chromosome, random_start, random_end, max_duplicatess]
             sample_coords.append(current_sample)
         else:
-            max_paralogs = 0
-        max_paras_list.append(max_paralogs)
-    paralogs_log = open(file_name + ".samples", 'w')
-    paralogs_data = ','.join([str(x) for x in max_paras_list])
-    paralogs_log.write("{},{},{}\n".format(sp, cluster, paralogs_data))
-    paralogs_log.close()
+            max_duplicatess = 0
+        max_paras_list.append(max_duplicatess)
+    duplicatess_log = open(file_name + ".samples", 'w')
+    duplicatess_data = ','.join([str(x) for x in max_paras_list])
+    duplicatess_log.write("{},{},{}\n".format(sp, cluster, duplicatess_data))
+    duplicatess_log.close()
     try:
-        original_paralogs = pre_cluster_table['paralogs'].values[0]
+        original_duplicatess = pre_cluster_table['duplicatess'].values[0]
     except KeyError:
         print("Error in :{}, {}".format(sp, pre_cluster_table.cluster))
         return pre_cluster_table
     with_perc = pre_cluster_table.loc[:]
     with_perc.loc[:, col_name] = np.percentile(max_paras_list, 95)
     query_perc = (sp, cluster, np.percentile(max_paras_list, 95))
-    status_msg = "{:<25} {:<9} {:<25} {} ({})".format(sp, original_paralogs, cluster, msg, round(query_perc[2], 3))
-    if gw and original_paralogs >= query_perc[2]:
+    status_msg = "{:<25} {:<9} {:<25} {} ({})".format(sp, original_duplicatess, cluster, msg, round(query_perc[2], 3))
+    if gw and original_duplicatess >= query_perc[2]:
         print(colored(status_msg, 'green'))
-    elif gw and original_paralogs < query_perc[2]:
+    elif gw and original_duplicatess < query_perc[2]:
         print(colored(status_msg, 'red'))
     else:
         print(status_msg)
@@ -615,14 +615,14 @@ if __name__ == "__main__":
     parser.add_argument("--blast_samples", "-b",
                         action="store",
                         type=int,
-                        help="Number of samples to build empirical distribution of paralogs")
+                        help="Number of samples to build empirical distribution of duplicatess")
     parser.add_argument("--sp", "-s",
                         action="append",
                         default=[],
                         help="Species to run the analysis on (must be written in quotes)")
     parser.add_argument("--out_dir", "-o",
                         action="store",
-                        default='cgp_out',
+                        default='CTDG_out',
                         help="Output directory")
     parser.add_argument("--cpu", "-c",
                         action="store",
@@ -647,64 +647,64 @@ if __name__ == "__main__":
 
     # Parse arguments
     args = parser.parse_args()
-    cgp = CGP(name_family=args.name_family, out_dir=args.out_dir, db=args.db, ref_sequence=args.ref_seq,
+    CTDG = CTDG(name_family=args.name_family, out_dir=args.out_dir, db=args.db, ref_sequence=args.ref_seq,
               blast_samples=args.blast_samples, sp=args.sp, evalue=args.evalue)
-    cgp.check_arguments()
-    cgp.remove_if_unfinished()
-    assert not os.path.exists("{}/{}".format(cgp.out_dir, cgp.name_family)), \
-        "Results for {} are already saved in {}".format(cgp.name_family, cgp.out_dir)
+    CTDG.check_arguments()
+    CTDG.remove_if_unfinished()
+    assert not os.path.exists("{}/{}".format(CTDG.out_dir, CTDG.name_family)), \
+        "Results for {} are already saved in {}".format(CTDG.name_family, CTDG.out_dir)
     # Load tables
-    cgp.init_tables()
+    CTDG.init_tables()
     # Set selected species
-    cgp.select_species()
+    CTDG.select_species()
     # Start chronometer
     init_time = time()
     # Create directory structure
-    cgp.create_folders()
+    CTDG.create_folders()
     if args.iterative:
         # Run the blast step and use the resulting hits as new query
-        pre_blast(args.cpu, cgp.ref_sequence, cgp.all_genes_fasta, cgp.name_family, cgp.sp)
+        pre_blast(args.cpu, CTDG.ref_sequence, CTDG.all_genes_fasta, CTDG.name_family, CTDG.sp)
         # Run blast
-        cgp.blast_exe(args.cpu, "{0}/{0}_ext_query.fa".format(cgp.name_family), cgp.all_genes_fasta, cgp.blast_out)
+        CTDG.blast_exe(args.cpu, "{0}/{0}_ext_query.fa".format(CTDG.name_family), CTDG.all_genes_fasta, CTDG.blast_out)
     else:
-        cgp.blast_exe(args.cpu, cgp.ref_sequence, cgp.all_genes_fasta, cgp.blast_out)
+        CTDG.blast_exe(args.cpu, CTDG.ref_sequence, CTDG.all_genes_fasta, CTDG.blast_out)
     # Parse blast result
-    cgp.family_blast = cgp.blast_parse(cgp.blast_out, acc_col=2, tab=True,
-                                       sp_list=cgp.sp, for_dict=False)
+    CTDG.family_blast = CTDG.blast_parse(CTDG.blast_out, acc_col=2, tab=True,
+                                       sp_list=CTDG.sp, for_dict=False)
     # Run MeanShift in parallel
-    family_blast = copy(cgp.family_blast)
+    family_blast = copy(CTDG.family_blast)
     with futures.ProcessPoolExecutor(args.cpu) as p:
-        ms_result = p.map(meanshift_cluster, cgp.sp_loop(family_blast, ["species", "chromosome"]))
-    cgp.ms_result = list(ms_result)
-    # Get number of paralogs, genes and proportions of paralogs per cluster
-    only_clusters_rows = copy(cgp.only_clusters_rows)
-    all_genes = copy(cgp.all_genes)
+        ms_result = p.map(meanshift_cluster, CTDG.sp_loop(family_blast, ["species", "chromosome"]))
+    CTDG.ms_result = list(ms_result)
+    # Get number of duplicatess, genes and proportions of duplicatess per cluster
+    only_clusters_rows = copy(CTDG.only_clusters_rows)
+    all_genes = copy(CTDG.all_genes)
     partial_gene_numbers = partial(gene_numbers, all_genes_tab=all_genes)
 
     with futures.ProcessPoolExecutor(args.cpu) as p:
-        family_numbers_list = p.map(partial_gene_numbers, cgp.only_clusters_rows)
-    cgp.family_numbers_list = list(family_numbers_list)
+        family_numbers_list = p.map(partial_gene_numbers, CTDG.only_clusters_rows)
+    CTDG.family_numbers_list = list(family_numbers_list)
 
     # Run chromosome-specific and genome wide statistical assessment of cluster density
 
-    # one_arg_blast_samples = partial(blast_sampling, gw=False, db=cgp.db, name_family=cgp.name_family,
-    #                                 blast_samples=cgp.blast_samples, genomes=cgp.genomes, all_genes_blast=cgp.all_genes)
-    one_arg_blast_samples_gw = partial(blast_sampling, gw=True, db=cgp.db, name_family=cgp.name_family,
-                                       blast_samples=cgp.blast_samples, genomes=cgp.genomes,
-                                       all_genes_blast=cgp.all_genes, evalue=cgp.evalue)
+    # one_arg_blast_samples = partial(blast_sampling, gw=False, db=CTDG.db, name_family=CTDG.name_family,
+    #                                 blast_samples=CTDG.blast_samples, genomes=CTDG.genomes, all_genes_blast=CTDG.all_genes)
+    one_arg_blast_samples_gw = partial(blast_sampling, gw=True, db=CTDG.db, name_family=CTDG.name_family,
+                                       blast_samples=CTDG.blast_samples, genomes=CTDG.genomes,
+                                       all_genes_blast=CTDG.all_genes, evalue=CTDG.evalue)
     # Run the sampling algorithm
-    print("Analyzing {} proto-cluster(s)".format(len(cgp.cluster_rows)))
-    print("{:<25} {:<9} {:<25} {}".format('species', 'paralogs', 'proto-cluster', 'sample (95P)'))
+    print("Analyzing {} proto-cluster(s)".format(len(CTDG.cluster_rows)))
+    print("{:<25} {:<9} {:<25} {}".format('species', 'duplicatess', 'proto-cluster', 'sample (95P)'))
 
-    cluster_rows = copy(cgp.cluster_rows)
+    cluster_rows = copy(CTDG.cluster_rows)
     with futures.ProcessPoolExecutor(args.cpu) as p:
         # chrom_wide = p.map(one_arg_blast_samples, cluster_rows)
         genome_wide = p.map(one_arg_blast_samples_gw, cluster_rows)
-    # cgp.chrom_wide, cgp.genome_wide = list(chrom_wide), list(genome_wide)
-    cgp.genome_wide = list(genome_wide)
-    new_tab = cgp.add_sample_cols(cgp.family_numbers)
-    cgp.add_samples(new_tab)
-    cgp.delete_intermediates()
+    # CTDG.chrom_wide, CTDG.genome_wide = list(chrom_wide), list(genome_wide)
+    CTDG.genome_wide = list(genome_wide)
+    new_tab = CTDG.add_sample_cols(CTDG.family_numbers)
+    CTDG.add_samples(new_tab)
+    CTDG.delete_intermediates()
 
     # Finish
     print("DONE")
@@ -713,5 +713,5 @@ if __name__ == "__main__":
     minutes = int(run_time / 60)
     hours = int(minutes / 60)
     minutes -= hours * 60
-    print("Results for {} were saved in {}".format(cgp.name_family, cgp.out_dir))
+    print("Results for {} were saved in {}".format(CTDG.name_family, CTDG.out_dir))
     print("Run time: {}:{}:{}\n".format(str(hours).zfill(2), str(minutes).zfill(2), str(seconds).zfill(2)))

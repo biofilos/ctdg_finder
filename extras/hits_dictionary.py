@@ -1,13 +1,9 @@
 import json
 from glob import glob
-#import os
 import sys
 import pandas as pd
-#import numpy as np
-# import cgpFinder as cgp
 
 # Change directory to location of blast files
-# os.chdir(sys.argv[1])
 blast_folder = sys.argv[1]
 # Load proteome annotation
 all_genes = pd.read_csv(sys.argv[2])
