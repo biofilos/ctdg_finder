@@ -5,7 +5,7 @@ The software package is a python3 script (`ctdg_finder.py`), which runs the homo
 In addition to the running script, ctdgFinder expects the following files and directories under a directory (a sample "mini" database is included).  
 
 * **all_seqs.fa**, **all_seqs.fa.phr**, **all_seqs.pin**, and **all_seqs.fa.psq**: Blast database used to find potential gene duplicates.  
-* **blasts/\*.json**: The blasts directory contains the results of an all vs. all blast search. Each of the JSON files contain all the queries from each species and the corresponding blast results (and associated E-value).  
+* **blasts/\*.json**: The blasts directory contains the results of an all vs. all blast search. Each of the JSON files contain all the queries from each species and the corresponding blast results (with their associated E-value).  
 * **chromosomes.csv**: Table with chromosome annotations (species, chromosome name, taxID, GI, accession, assembly, length).  
 * **genes_parsed.csv**: Table with gene annotation for all species (accession, start coordinate, end coordinate, strand, chromosome, species, gene symbol, name, length).  
 **IMPORTANT**: If a custom database is going to be used, every single annotation table, blast database and sequence file (all_seqs.fa) should have identical accession numbers, chromosome locations, etc. In addition, the json-parsed all vs. all blast and the blast database should be computed from `all_seqs.fa`, and `all_seqs.fa` should have a header for each sequence of the form:  

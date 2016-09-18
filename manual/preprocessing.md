@@ -1,7 +1,7 @@
 ## Preprocessing
 ### From NCBI genomes
 This section considers the case where the user wants to select a set of species from the [NCBI genomes](http://ftp.ncbi.nih.gov/genomes) database.  
-In order to use CTDGFinder with custom databases, a set of files must be generated. The following two files are required:  
+In order to use CTDGFinder with custom databases, a set of files must be generated. The following two files are required (the archive `mini_raw.tgz` contains the files used to build the sample database `mini`):  
 
 * `proteomes.fa`: FASTA file containing most of the protein sequences of the species to be considered (the preprocessing script will attempt to download sequences not found in `proteomes.fa`, but it will severely affect performance, and generate unnecessary traffic on the NCBI server). Importantly, the accession number must be in the field 4 of the sequence name (fields being separated by "|"; this is the default format of protein sequences downloaded from the NCBI). 
 * `genomes.gb`: GenBank file with genome annotations. Must contain CDS features, which will be considered for genes extraction.  
