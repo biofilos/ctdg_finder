@@ -4,7 +4,7 @@ from glob import glob
 import os
 from Bio import SeqIO
 
-sys.path.append("..")
+sys.path.append("/home/alekos/Documents/phd/vanderbilt/clusters/ctdg_finder")
 from ctdg_finder import CTDG
 
 '''
@@ -29,7 +29,8 @@ if not os.path.exists("{}/done".format(out_dir)):
 # Generate species-specific proteomes
 for gene in SeqIO.parse(all_seqs, 'fasta'):
     sp_name = gene.name.split("|")[0]
-    if not (os.path.exists("{}/{}.blast_out".format(out_dir,sp_name)) or os.path.exists("{}/{}.blast".format(out_dir, sp_name))):
+    if not (os.path.exists("{}/{}.blast_out".format(out_dir, sp_name)) or
+                os.path.exists("{}/{}.blast".format(out_dir, sp_name))):
         fasta_name = "{}/{}.fasta".format(out_dir, sp_name)
         fileO = open(fasta_name, 'a')
         SeqIO.write(gene, fileO, 'fasta')
