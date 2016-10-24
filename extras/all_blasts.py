@@ -3,8 +3,9 @@ from glob import glob
 
 import os
 from Bio import SeqIO
+ctdg_path = sys.argv[0].replace("extras/all_blasts.py", "")
 
-sys.path.append("/home/alekos/Documents/phd/vanderbilt/clusters/ctdg_finder")
+sys.path.append(ctdg_path)
 from ctdg_finder import CTDG
 
 '''

@@ -672,8 +672,12 @@ if __name__ == "__main__":
     else:
         CTDG.blast_exe(args.cpu, CTDG.ref_sequence, CTDG.all_genes_fasta, CTDG.blast_out)
     # Parse blast result
+    
     CTDG.family_blast = CTDG.blast_parse(CTDG.blast_out, acc_col=2, tab=True,
-                                       sp_list=CTDG.sp, for_dict=False)
+                                         sp_list=CTDG.sp, for_dict=False)
+    if CTDG.family_blast.shape[0] == 0:
+        CTDG.delete_intermediates()
+        raise Exception("Blast output is empty")
     # Run MeanShift in parallel
     family_blast = copy(CTDG.family_blast)
     with futures.ProcessPoolExecutor(args.cpu) as p:
