@@ -18,8 +18,8 @@ are needed
 '''
 # Specify directory where the blast database is located
 all_seqs = sys.argv[1]
-out_dir = all_seqs.replace(all_seqs.split('/')[-1], 'blasts')
-cpus = sys.argv[2]
+out_dir = sys.argv[2]
+cpus = sys.argv[3]
 
 # Create directory if necessary
 if not os.path.exists(out_dir):
@@ -40,7 +40,7 @@ for gene in SeqIO.parse(all_seqs, 'fasta'):
 # Run Blast step for each proteome
 for input_file in glob("{}/*.fasta".format(out_dir)):
     ctdg = CTDG(name_family="all_blast", evalue=1, out_dir=out_dir, db=all_seqs,
-              blast_samples=0, sp=[], ref_sequence=input_file)
+                blast_samples=0, sp=[], ref_sequence=input_file)
     output_file = input_file.replace('fasta', 'blast')
     sp = input_file.replace('.fasta', '').split('/')[-1]
     if not os.path.exists(output_file):

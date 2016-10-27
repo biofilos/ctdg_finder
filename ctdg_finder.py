@@ -20,6 +20,8 @@ from termcolor import colored
 
 
 # Define class CTDG
+
+
 class CTDG:
     def __init__(self, name_family, evalue, out_dir, db, ref_sequence, blast_samples, sp):
         self.evalue = evalue
@@ -40,6 +42,7 @@ class CTDG:
         self.family_numbers_list = None
         # self.chrom_wide = []
         self.genome_wide = []
+
 
     def check_arguments(self):
         """
@@ -593,7 +596,9 @@ def blast_sampling(pre_cluster_table, gw, db, name_family, blast_samples, genome
     with_perc = pre_cluster_table.loc[:]
     with_perc.loc[:, col_name] = np.percentile(max_paras_list, 95)
     query_perc = (sp, cluster, np.percentile(max_paras_list, 95))
-    status_msg = "{:<25} {:<9} {:<25} {} ({})".format(sp, original_duplicates, cluster, msg, round(query_perc[2], 3))
+    max_sp_len = max([len(x) for x in set(genomes['species'])]) + 2
+    status_msg = "{:<{sp_len}} {:<10} {:<30} {} ({})".format(sp, original_duplicates,
+                                                            cluster, msg, round(query_perc[2], 3), sp_len=max_sp_len)
     if gw and original_duplicates >= query_perc[2]:
         print(colored(status_msg, 'green'))
     elif gw and original_duplicates < query_perc[2]:
@@ -695,13 +700,16 @@ if __name__ == "__main__":
     # Run chromosome-specific and genome wide statistical assessment of cluster density
 
     # one_arg_blast_samples = partial(blast_sampling, gw=False, db=CTDG.db, name_family=CTDG.name_family,
-    #                                 blast_samples=CTDG.blast_samples, genomes=CTDG.genomes, all_genes_blast=CTDG.all_genes)
+    #                                 blast_samples=CTDG.blast_samples, genomes=CTDG.genomes,
+    #                                 all_genes_blast=CTDG.all_genes)
     one_arg_blast_samples_gw = partial(blast_sampling, gw=True, db=CTDG.db, name_family=CTDG.name_family,
                                        blast_samples=CTDG.blast_samples, genomes=CTDG.genomes,
                                        all_genes_blast=CTDG.all_genes, evalue=CTDG.evalue)
     # Run the sampling algorithm
+    max_sp_len = max([len(x) for x in set(CTDG.genomes['species'])]) + 2
     print("Analyzing {} proto-cluster(s)".format(len(CTDG.cluster_rows)))
-    print("{:<25} {:<9} {:<25} {}".format('species', 'duplicates', 'proto-cluster', 'sample (95P)'))
+    print("{:<{sp_len}} {:<10} {:<30} {}".format('species', 'duplicates',
+                                                'proto-cluster', 'sample (95P)', sp_len=max_sp_len))
 
     cluster_rows = copy(CTDG.cluster_rows)
     with futures.ProcessPoolExecutor(args.cpu) as p:

@@ -1,6 +1,6 @@
 from glob import glob
-from termcolor import colored
 import sys
+from termcolor import colored
 total = 0
 
 in_dir = sys.argv[1]
@@ -25,6 +25,6 @@ for run in glob("{}/run*/".format(in_dir)):
     total += total_run
 
 perc_done = round(len(finished) / total, 4) * 100
-print("\nTotal done: {} ({}%)".format(len(finished), str(perc_done)[:5]))
-print("Remaining: {}".format(total - len(finished)))
-print("Total: {}".format(total))
+print("\nTotal done: {:>2} ({}%)".format(len(finished), str(perc_done)[:5]))
+print("Remaining: {:>6}".format(total - len(finished)))
+print("Total: {:>10}".format(total))
