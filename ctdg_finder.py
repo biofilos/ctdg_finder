@@ -28,8 +28,8 @@ class CTDG:
         self.sp = sp
         self.blast_samples = blast_samples
         self.ref_sequence = ref_sequence
-        self.db = db
-        self.out_dir = out_dir
+        self.db = db.strip('/')
+        self.out_dir = out_dir.strip('/')
         self.name_family = name_family
         self.genome_file = "{}/chromosomes.csv".format(self.db)
         self.all_genes_file = "{}/genes_parsed.csv".format(self.db)
@@ -42,7 +42,6 @@ class CTDG:
         self.family_numbers_list = None
         # self.chrom_wide = []
         self.genome_wide = []
-
 
     def check_arguments(self):
         """
@@ -66,6 +65,11 @@ class CTDG:
         assert os.path.exists(self.ref_sequence), "reference sequence {} des not exist".format(self.ref_sequence)
         # Check that number of blast samples has been set
         assert self.blast_samples, "Number of blast samples was not specified"
+        # Make sure that the output directory is not the directory where the database is or the directory where
+        # the CTDGFinder resides
+        banned_dirs = [os.getcwd(), self.db, '.']
+        assert self.out_dir not in banned_dirs, "output direcrory can't be the ctdgfinder directory" + \
+                                                " or the directory where the ctdg database is stored"
 
     def remove_if_unfinished(self):
         """
@@ -394,7 +398,6 @@ def pre_blast(cpu, ref, all_genes, name_family, sp):
         for seq in SeqIO.parse(CTDG.all_genes_fasta, 'fasta'):
             if seq.name.split("|")[2] in hits:
                 SeqIO.write(seq, fileO, "fasta")
-
 
 def meanshift_cluster(ms_sp_table):
     """
