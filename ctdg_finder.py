@@ -16,7 +16,7 @@ from Bio import SeqIO
 from sklearn.cluster import MeanShift
 from termcolor import colored
 
-
+pd.options.mode.chained_assignment = None
 
 
 # Define class CTDG
