@@ -424,7 +424,7 @@ def pre_blast(cpu, ref, all_genes, name_family, sp):
             if seq.name.split("|")[2] in hits:
                 SeqIO.write(seq, fileO, "fasta")
 
-def meanshift_cluster(ms_sp_table):
+def meanshift_cluster(ms_sp_table, CTDG):
     """
         Extract clusters from annotation using the mean shift algorithm
         :param ms_sp_table: blast hits table for each species/chromosome
@@ -564,7 +564,7 @@ def grab_duplicates(acc_list, duplicates, evalue):
     return duplicates_max
 
 
-def blast_sampling(pre_cluster_table, gw, db, name_family, blast_samples, genomes, all_genes_blast, evalue):
+def blast_sampling(pre_cluster_table, gw, db, name_family, blast_samples, genomes, all_genes_blast, evalue, CTDG):
     sp = pre_cluster_table.loc[:, 'species'].values[0]
     # Load blast hits with queries from the species
     sp_duplicates = json.loads(open("{}/blasts/{}.json".format(db, sp)).read())
@@ -691,78 +691,92 @@ if __name__ == "__main__":
                              blast_samples=args.blast_samples, sp=args.sp, evalue=args.evalue)
     ctdg_config.check_arguments()
 
+    def run(args):
+        CTDG = CtdgRun(ctdg_config, name_family=args.name_family, ref_sequence=args.ref_seq)
+        CTDG.remove_if_unfinished()
+        assert not os.path.exists("{}/{}".format(CTDG.out_dir, CTDG.name_family)), \
+            "Results for {} are already saved in {}".format(CTDG.name_family, CTDG.out_dir)
+        # Load tables
+        CTDG.init_tables()
+        # Set selected species
+        CTDG.select_species()
+        # Start chronometer
+        init_time = time()
+        # Create directory structure
+        CTDG.create_folders()
+        if args.iterative:
+            # Run the blast step and use the resulting hits as new query
+            pre_blast(args.cpu, CTDG.ref_sequence, CTDG.all_genes_fasta, CTDG.name_family, CTDG.sp)
+            # Run blast
+            CTDG.blast_exe(args.cpu, "{0}/{0}_ext_query.fa".format(CTDG.name_family), CTDG.all_genes_fasta, CTDG.blast_out)
+        else:
+            CTDG.blast_exe(args.cpu, CTDG.ref_sequence, CTDG.all_genes_fasta, CTDG.blast_out)
+        # Parse blast result
 
-    CTDG = CtdgRun(ctdg_config, name_family=args.name_family, ref_sequence=args.ref_seq)
-    CTDG.remove_if_unfinished()
-    assert not os.path.exists("{}/{}".format(CTDG.out_dir, CTDG.name_family)), \
-        "Results for {} are already saved in {}".format(CTDG.name_family, CTDG.out_dir)
-    # Load tables
-    CTDG.init_tables()
-    # Set selected species
-    CTDG.select_species()
-    # Start chronometer
-    init_time = time()
-    # Create directory structure
-    CTDG.create_folders()
-    if args.iterative:
-        # Run the blast step and use the resulting hits as new query
-        pre_blast(args.cpu, CTDG.ref_sequence, CTDG.all_genes_fasta, CTDG.name_family, CTDG.sp)
-        # Run blast
-        CTDG.blast_exe(args.cpu, "{0}/{0}_ext_query.fa".format(CTDG.name_family), CTDG.all_genes_fasta, CTDG.blast_out)
-    else:
-        CTDG.blast_exe(args.cpu, CTDG.ref_sequence, CTDG.all_genes_fasta, CTDG.blast_out)
-    # Parse blast result
-    
-    CTDG.family_blast = CTDG.blast_parse(CTDG.blast_out, acc_col=2, tab=True,
-                                         sp_list=CTDG.sp, for_dict=False)
-    if CTDG.family_blast.shape[0] == 0:
+        CTDG.family_blast = CTDG.blast_parse(CTDG.blast_out, acc_col=2, tab=True,
+                                             sp_list=CTDG.sp, for_dict=False)
+        if CTDG.family_blast.shape[0] == 0:
+            CTDG.delete_intermediates()
+            raise Exception("Blast output is empty")
+        # Run MeanShift in parallel
+        family_blast = copy(CTDG.family_blast)
+        p_meanshift_cluster = partial(meanshift_cluster, CTDG=CTDG)
+        with futures.ProcessPoolExecutor(args.cpu) as p:
+            ms_result = p.map(p_meanshift_cluster, CTDG.sp_loop(family_blast, ["species", "chromosome"]))
+        CTDG.ms_result = list(ms_result)
+        # Get number of duplicates, genes and proportions of duplicates per cluster
+        only_clusters_rows = copy(CTDG.only_clusters_rows)
+        all_genes = copy(CTDG.all_genes)
+        partial_gene_numbers = partial(gene_numbers, all_genes_tab=all_genes)
+
+        with futures.ProcessPoolExecutor(args.cpu) as p:
+            family_numbers_list = p.map(partial_gene_numbers, CTDG.only_clusters_rows)
+        CTDG.family_numbers_list = list(family_numbers_list)
+
+        # Run chromosome-specific and genome wide statistical assessment of cluster density
+
+        # one_arg_blast_samples = partial(blast_sampling, gw=False, db=CTDG.db, name_family=CTDG.name_family,
+        #                                 blast_samples=CTDG.blast_samples, genomes=CTDG.genomes,
+        #                                 all_genes_blast=CTDG.all_genes)
+        one_arg_blast_samples_gw = partial(blast_sampling, gw=True, db=CTDG.db, name_family=CTDG.name_family,
+                                           blast_samples=CTDG.blast_samples, genomes=CTDG.genomes,
+                                           all_genes_blast=CTDG.all_genes, evalue=CTDG.evalue,
+                                           CTDG=CTDG)
+        # Run the sampling algorithm
+        max_sp_len = max([len(x) for x in set(CTDG.genomes['species'])]) + 2
+        print("Analyzing {} proto-cluster(s)".format(len(CTDG.cluster_rows)))
+        print("{:<{sp_len}} {:<10} {:<30} {}".format('species', 'duplicates',
+                                                    'proto-cluster', 'sample (95P)', sp_len=max_sp_len))
+
+        cluster_rows = copy(CTDG.cluster_rows)
+        with futures.ProcessPoolExecutor(args.cpu) as p:
+            # chrom_wide = p.map(one_arg_blast_samples, cluster_rows)
+            genome_wide = p.map(one_arg_blast_samples_gw, cluster_rows)
+        # CTDG.chrom_wide, CTDG.genome_wide = list(chrom_wide), list(genome_wide)
+        CTDG.genome_wide = list(genome_wide)
+        # CTDG.genome_wide = map(one_arg_blast_samples_gw, cluster_rows)
+        new_tab = CTDG.add_sample_cols(CTDG.family_numbers)
+        CTDG.add_samples(new_tab)
         CTDG.delete_intermediates()
-        raise Exception("Blast output is empty")
-    # Run MeanShift in parallel
-    family_blast = copy(CTDG.family_blast)
-    with futures.ProcessPoolExecutor(args.cpu) as p:
-        ms_result = p.map(meanshift_cluster, CTDG.sp_loop(family_blast, ["species", "chromosome"]))
-    CTDG.ms_result = list(ms_result)
-    # Get number of duplicates, genes and proportions of duplicates per cluster
-    only_clusters_rows = copy(CTDG.only_clusters_rows)
-    all_genes = copy(CTDG.all_genes)
-    partial_gene_numbers = partial(gene_numbers, all_genes_tab=all_genes)
 
-    with futures.ProcessPoolExecutor(args.cpu) as p:
-        family_numbers_list = p.map(partial_gene_numbers, CTDG.only_clusters_rows)
-    CTDG.family_numbers_list = list(family_numbers_list)
+        # Finish
+        print("DONE")
+        run_time = time() - init_time
+        seconds = int(run_time % 60)
+        minutes = int(run_time / 60)
+        hours = int(minutes / 60)
+        minutes -= hours * 60
+        print("Results for {} were saved in {}".format(CTDG.name_family, CTDG.out_dir))
+        print("Run time: {}:{}:{}\n".format(str(hours).zfill(2), str(minutes).zfill(2), str(seconds).zfill(2)))
 
-    # Run chromosome-specific and genome wide statistical assessment of cluster density
-
-    # one_arg_blast_samples = partial(blast_sampling, gw=False, db=CTDG.db, name_family=CTDG.name_family,
-    #                                 blast_samples=CTDG.blast_samples, genomes=CTDG.genomes,
-    #                                 all_genes_blast=CTDG.all_genes)
-    one_arg_blast_samples_gw = partial(blast_sampling, gw=True, db=CTDG.db, name_family=CTDG.name_family,
-                                       blast_samples=CTDG.blast_samples, genomes=CTDG.genomes,
-                                       all_genes_blast=CTDG.all_genes, evalue=CTDG.evalue)
-    # Run the sampling algorithm
-    max_sp_len = max([len(x) for x in set(CTDG.genomes['species'])]) + 2
-    print("Analyzing {} proto-cluster(s)".format(len(CTDG.cluster_rows)))
-    print("{:<{sp_len}} {:<10} {:<30} {}".format('species', 'duplicates',
-                                                'proto-cluster', 'sample (95P)', sp_len=max_sp_len))
-
-    cluster_rows = copy(CTDG.cluster_rows)
-    with futures.ProcessPoolExecutor(args.cpu) as p:
-        # chrom_wide = p.map(one_arg_blast_samples, cluster_rows)
-        genome_wide = p.map(one_arg_blast_samples_gw, cluster_rows)
-    # CTDG.chrom_wide, CTDG.genome_wide = list(chrom_wide), list(genome_wide)
-    CTDG.genome_wide = list(genome_wide)
-    # CTDG.genome_wide = map(one_arg_blast_samples_gw, cluster_rows)
-    new_tab = CTDG.add_sample_cols(CTDG.family_numbers)
-    CTDG.add_samples(new_tab)
-    CTDG.delete_intermediates()
-
-    # Finish
-    print("DONE")
-    run_time = time() - init_time
-    seconds = int(run_time % 60)
-    minutes = int(run_time / 60)
-    hours = int(minutes / 60)
-    minutes -= hours * 60
-    print("Results for {} were saved in {}".format(CTDG.name_family, CTDG.out_dir))
-    print("Run time: {}:{}:{}\n".format(str(hours).zfill(2), str(minutes).zfill(2), str(seconds).zfill(2)))
+    if args.dir:
+        running = 0
+        ref_files = glob("{}/*".format(args.dir))
+        for file in ref_files:
+            args.ref_seq = file
+            args.name_family = file.split("/")[-1].split(".")[0]
+            running += 1
+            print("Running analysis {} of {}".format(running, len(ref_files)))
+            run(args)
+    else:
+        run(args)
