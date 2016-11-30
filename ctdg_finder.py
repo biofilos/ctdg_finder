@@ -775,7 +775,8 @@ if __name__ == "__main__":
             running += 1
             args.ref_seq = file
             args.name_family = file.split("/")[-1].split(".")[0]
-            if not os.path.isdir("{}/{}".format(args.out_dir, args.name_family)):
+            if os.path.isdir("{}/{}".format(args.out_dir, args.name_family)):
+                print("{} was already run".format(args.name_family))
                 print("Running analysis {} of {}".format(running, len(ref_files)))
                 run(args)
     else:
