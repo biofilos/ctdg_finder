@@ -22,21 +22,18 @@ pd.options.mode.chained_assignment = None
 # Define class CTDG
 
 
-class CTDG:
-    def __init__(self, name_family, evalue, out_dir, db, ref_sequence, blast_samples, sp):
+class CtdgConfig:
+    def __init__(self, evalue, out_dir, db, blast_samples, sp):
         self.evalue = evalue
         self.sp = sp
         self.blast_samples = blast_samples
-        self.ref_sequence = ref_sequence
         self.db = db.strip('/')
         self.out_dir = out_dir.strip('/')
-        self.name_family = name_family
         self.genome_file = "{}/chromosomes.csv".format(self.db)
         self.all_genes_file = "{}/genes_parsed.csv".format(self.db)
         self.all_genes_fasta = "{}/all_seqs.fa".format(self.db)
         self.genomes = None
         self.all_genes = None
-        self.blast_out = "{0}/report/{0}.blast".format(self.name_family)
         self.blast_rows = None
         self.ms_result = None
         self.family_numbers_list = None
@@ -61,8 +58,7 @@ class CTDG:
         # Check that the annotation table exists
         assert os.path.exists(self.genome_file), "Annotation file" + \
                                                  "{}/genes_parsed.csv does not exist".format(self.genome_file)
-        # Check that the reference sequence exists
-        assert os.path.exists(self.ref_sequence), "reference sequence {} des not exist".format(self.ref_sequence)
+
         # Check that number of blast samples has been set
         assert self.blast_samples, "Number of blast samples was not specified"
         # Make sure that the output directory is not the directory where the database is or the directory where
@@ -70,6 +66,31 @@ class CTDG:
         banned_dirs = [os.getcwd(), self.db, '.']
         assert self.out_dir not in banned_dirs, "output direcrory can't be the ctdgfinder directory" + \
                                                 " or the directory where the ctdg database is stored"
+
+
+class CtdgRun:
+    def __init__(self, db, name_family, ref_sequence):
+        self.ref_sequence = ref_sequence
+        # Check that the reference sequence exists
+        assert os.path.exists(self.ref_sequence), "reference sequence {} des not exist".format(self.ref_sequence)
+        self.name_family = name_family
+        self.blast_out = "{0}/report/{0}.blast".format(self.name_family)
+        # Load database from ctdgDB object
+        self.evalue = db.evalue
+        self.sp = db.sp
+        self.blast_samples = db.blast_samples
+        self.db = db.db
+        self.out_dir = db.out_dir
+        self.genome_file = db.genome_file
+        self.all_genes_file = db.all_genes_file
+        self.all_genes_fasta = db.all_genes_fasta
+        self.genomes = db.genomes
+        self.all_genes = db.all_genes
+        self.blast_rows = db.blast_rows
+        self.ms_result = db.ms_result
+        self.family_numbers_list = db.family_numbers_list
+        # self.chrom_wide = []
+        self.genome_wide = db.genome_wide
 
     def remove_if_unfinished(self):
         """
@@ -385,6 +406,10 @@ class CTDG:
         return tabs
 
 
+
+
+
+
 # These functions were placed outside the class because if they were inside, the whole class
 # would have been copied for each processor
 
@@ -651,6 +676,10 @@ if __name__ == "__main__":
     parser.add_argument("--iterative", "-i",
                         action="store_true",
                         help="Perform an extra blast search at the beginning to enrich the query set")
+    parser.add_argument("--dir", "-D",
+                        action="store",
+                        default=None,
+                        help="run analyses with all the sequences in a directory")
     # Check if blast is installed. Since this is not required for defining the analysis, it is executed before
     # the class definition
     blast_path = shutil.which('blastp')
@@ -658,9 +687,12 @@ if __name__ == "__main__":
 
     # Parse arguments
     args = parser.parse_args()
-    CTDG = CTDG(name_family=args.name_family, out_dir=args.out_dir, db=args.db, ref_sequence=args.ref_seq,
-              blast_samples=args.blast_samples, sp=args.sp, evalue=args.evalue)
-    CTDG.check_arguments()
+    ctdg_config = CtdgConfig(out_dir=args.out_dir, db=args.db,
+                             blast_samples=args.blast_samples, sp=args.sp, evalue=args.evalue)
+    ctdg_config.check_arguments()
+
+
+    CTDG = CtdgRun(ctdg_config, name_family=args.name_family, ref_sequence=args.ref_seq)
     CTDG.remove_if_unfinished()
     assert not os.path.exists("{}/{}".format(CTDG.out_dir, CTDG.name_family)), \
         "Results for {} are already saved in {}".format(CTDG.name_family, CTDG.out_dir)

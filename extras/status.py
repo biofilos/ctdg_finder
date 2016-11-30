@@ -4,7 +4,8 @@ from termcolor import colored
 total = 0
 
 in_dir = sys.argv[1]
-finished = [x.split('/')[-1] for x in glob("{}/CTDG_out/*".format(in_dir))]
+out_dir = sys.argv[2]
+finished = [x.split('/')[-1] for x in glob("{}/{}/*".format(in_dir, out_dir))]
 for run in glob("{}/run*/".format(in_dir)):
     fastas = [x.split('/')[-1].replace(".fa", '') for x in glob("{}*.fa".format(run))]
     run_finished = len(set(finished).intersection(set(fastas)))
