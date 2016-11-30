@@ -67,6 +67,19 @@ class CtdgConfig:
         assert self.out_dir not in banned_dirs, "output direcrory can't be the ctdgfinder directory" + \
                                                 " or the directory where the ctdg database is stored"
 
+    def init_tables(self):
+        """
+        Initialize genome and gene annotation tables
+        :return: None
+        """
+        self.genomes = pd.read_csv(self.genome_file)
+        self.genomes.dropna(inplace=True)
+        self.genomes.loc[:, 'chromosome'] = self.genomes['chromosome'].astype(str)
+        self.all_genes = pd.read_csv(self.all_genes_file)
+        self.all_genes.loc[:, 'chromosome'] = self.all_genes['chromosome'].astype(str)
+        self.all_genes = self.all_genes.loc[~(self.all_genes['chromosome'].isnull()) &
+                                            (self.all_genes['chromosome'] != "NA")]
+        self.all_genes.set_index('acc', inplace=True)
 
 class CtdgRun:
     def __init__(self, db, name_family, ref_sequence):
@@ -100,20 +113,6 @@ class CtdgRun:
         if os.path.exists(self.name_family):
             print("Partial results for {} were found, removing them".format(self.name_family))
             shutil.rmtree(self.name_family)
-
-    def init_tables(self):
-        """
-        Initialize genome and gene annotation tables
-        :return: None
-        """
-        self.genomes = pd.read_csv(self.genome_file)
-        self.genomes.dropna(inplace=True)
-        self.genomes.loc[:, 'chromosome'] = self.genomes['chromosome'].astype(str)
-        self.all_genes = pd.read_csv(self.all_genes_file)
-        self.all_genes.loc[:, 'chromosome'] = self.all_genes['chromosome'].astype(str)
-        self.all_genes = self.all_genes.loc[~(self.all_genes['chromosome'].isnull()) &
-                                            (self.all_genes['chromosome'] != "NA")]
-        self.all_genes.set_index('acc', inplace=True)
 
     def select_species(self):
         """
@@ -773,10 +772,11 @@ if __name__ == "__main__":
         running = 0
         ref_files = glob("{}/*".format(args.dir))
         for file in ref_files:
+            running += 1
             args.ref_seq = file
             args.name_family = file.split("/")[-1].split(".")[0]
-            running += 1
-            print("Running analysis {} of {}".format(running, len(ref_files)))
-            run(args)
+            if not os.path.isdir("{}/{}".format(args.out_dir, args.name_family)):
+                print("Running analysis {} of {}".format(running, len(ref_files)))
+                run(args)
     else:
         run(args)
