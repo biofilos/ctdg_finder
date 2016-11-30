@@ -27,7 +27,7 @@ class CtdgConfig:
         self.evalue = evalue
         self.sp = sp
         self.blast_samples = blast_samples
-        self.db = db.strip('/')
+        self.db = db
         self.out_dir = out_dir.strip('/')
         self.genome_file = "{}/chromosomes.csv".format(self.db)
         self.all_genes_file = "{}/genes_parsed.csv".format(self.db)
