@@ -689,6 +689,7 @@ if __name__ == "__main__":
     ctdg_config = CtdgConfig(out_dir=args.out_dir, db=args.db,
                              blast_samples=args.blast_samples, sp=args.sp, evalue=args.evalue)
     ctdg_config.check_arguments()
+    ctdg_config.init_tables()
 
     def run(args):
         CTDG = CtdgRun(ctdg_config, name_family=args.name_family, ref_sequence=args.ref_seq)
@@ -696,7 +697,6 @@ if __name__ == "__main__":
         assert not os.path.exists("{}/{}".format(CTDG.out_dir, CTDG.name_family)), \
             "Results for {} are already saved in {}".format(CTDG.name_family, CTDG.out_dir)
         # Load tables
-        CTDG.init_tables()
         # Set selected species
         CTDG.select_species()
         # Start chronometer
