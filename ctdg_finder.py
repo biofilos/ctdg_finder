@@ -777,6 +777,7 @@ if __name__ == "__main__":
             args.name_family = file.split("/")[-1].split(".")[0]
             if os.path.isdir("{}/{}".format(args.out_dir, args.name_family)):
                 print("{} was already run".format(args.name_family))
+            else:
                 print("Running analysis {} of {}".format(running, len(ref_files)))
                 run(args)
     else:
