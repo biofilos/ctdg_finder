@@ -402,6 +402,7 @@ class CtdgRun:
             if len(os.listdir(folder)) == 0:
                 os.removedirs(folder)
         # Move result to output directory
+        os.makedirs(self.out_dir, exist_ok=True)
         shutil.move(self.name_family, '{}/{}'.format(self.out_dir, self.name_family))
 
     @staticmethod
