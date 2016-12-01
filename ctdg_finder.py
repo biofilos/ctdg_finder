@@ -456,7 +456,6 @@ def meanshift_cluster(ms_sp_table, CTDG):
         # The band_width in MeanShift is set to the mean intergenic distance plus its standard deviation
         # This is more or less the minumum distance between "true" neighboring members of a cluster
         band_width = mean_distance + sd_distance
-        print(sp_mean_shift, sd_distance)
         # Since MeanShift works on 2D data, a 'y' axis was generated using zeroes
         gene_starts = np.array([(x, y) for x, y in zip(ms_sp_table.start.values.astype(int),
                                                        np.zeros(len(ms_sp_table)))])
