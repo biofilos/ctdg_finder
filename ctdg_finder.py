@@ -81,6 +81,7 @@ class CtdgConfig:
                                             (self.all_genes['chromosome'] != "NA")]
         self.all_genes.set_index('acc', inplace=True)
 
+
 class CtdgRun:
     def __init__(self, db, name_family, ref_sequence):
         self.ref_sequence = ref_sequence
@@ -271,7 +272,9 @@ class CtdgRun:
                 # Remove hits in non-assembled chromosomes (almost deprecated)
                 # sub_table = sub_table.loc[sub_table['chromosome'] != 'NA']
                 sub_table.to_csv("{}_out".format(out_file))
-                assert sub_table.shape[0] > 0, "Not enough blast hits. Terminating"
+                if not sub_table.shape[0] > 0:
+                    print("Not enough blast hits. Terminating")
+                    return None
                 # Return filtered blast results
                 return sub_table
             else:
@@ -321,7 +324,9 @@ class CtdgRun:
         family_list_filtered = [x for x in self.family_numbers_list if x is not None]
         if len(family_list_filtered) == 0:
             self.delete_intermediates()
-            assert len(family_list_filtered) > 0, "NO CLUSTERS in the {} family".format(self.name_family)
+            if len(family_list_filtered) > 0:
+                print("NO CLUSTERS in the {} family".format(self.name_family))
+                return None
         else:
             return pd.DataFrame(family_list_filtered,
                                 columns=['species', 'chromosome', 'cluster', 'start', 'end',
@@ -329,7 +334,10 @@ class CtdgRun:
 
     @property
     def cluster_rows(self):
-        return self.sp_loop(self.family_numbers, ['species', 'chromosome', 'cluster'])
+        if self.family_numbers is None:
+            return None
+        else:
+            return self.sp_loop(self.family_numbers, ['species', 'chromosome', 'cluster'])
 
     def add_sample_cols(self, table):
         # for chrom_data, genome_data in zip(self.chrom_wide, self.genome_wide):
@@ -423,6 +431,7 @@ def pre_blast(cpu, ref, all_genes, name_family, sp):
             if seq.name.split("|")[2] in hits:
                 SeqIO.write(seq, fileO, "fasta")
 
+
 def meanshift_cluster(ms_sp_table, CTDG):
     """
         Extract clusters from annotation using the mean shift algorithm
@@ -440,13 +449,14 @@ def meanshift_cluster(ms_sp_table, CTDG):
         ms_sp_table.loc[:, 'order'] = 0
     else:
         # Calculate the mean between neighboring genes in the chromosome
-        gene_distances = proteome['end'].values[1:] - proteome['start'][:-1]
+        gene_distances = proteome['start'].values[1:] - proteome['end'][:-1]
         mean_distance = np.mean(gene_distances)
         # Calculate standard deviation of the distance between neighboring genes in the chromosome
         sd_distance = np.std(gene_distances)
         # The band_width in MeanShift is set to the mean intergenic distance plus its standard deviation
         # This is more or less the minumum distance between "true" neighboring members of a cluster
         band_width = mean_distance + sd_distance
+        print(sp_mean_shift, sd_distance)
         # Since MeanShift works on 2D data, a 'y' axis was generated using zeroes
         gene_starts = np.array([(x, y) for x, y in zip(ms_sp_table.start.values.astype(int),
                                                        np.zeros(len(ms_sp_table)))])
@@ -694,8 +704,9 @@ if __name__ == "__main__":
     def run(args):
         CTDG = CtdgRun(ctdg_config, name_family=args.name_family, ref_sequence=args.ref_seq)
         CTDG.remove_if_unfinished()
-        assert not os.path.exists("{}/{}".format(CTDG.out_dir, CTDG.name_family)), \
-            "Results for {} are already saved in {}".format(CTDG.name_family, CTDG.out_dir)
+        if os.path.exists("{}/{}".format(CTDG.out_dir, CTDG.name_family)):
+            print("Results for {} are already saved in {}".format(CTDG.name_family, CTDG.out_dir))
+            return None
         # Load tables
         # Set selected species
         CTDG.select_species()
@@ -714,6 +725,11 @@ if __name__ == "__main__":
 
         CTDG.family_blast = CTDG.blast_parse(CTDG.blast_out, acc_col=2, tab=True,
                                              sp_list=CTDG.sp, for_dict=False)
+        # End the run if there are not enough blasts
+        if CTDG.family_blast is None:
+            CTDG.delete_intermediates()
+            return None
+
         if CTDG.family_blast.shape[0] == 0:
             CTDG.delete_intermediates()
             raise Exception("Blast output is empty")
@@ -732,17 +748,15 @@ if __name__ == "__main__":
             family_numbers_list = p.map(partial_gene_numbers, CTDG.only_clusters_rows)
         CTDG.family_numbers_list = list(family_numbers_list)
 
-        # Run chromosome-specific and genome wide statistical assessment of cluster density
-
-        # one_arg_blast_samples = partial(blast_sampling, gw=False, db=CTDG.db, name_family=CTDG.name_family,
-        #                                 blast_samples=CTDG.blast_samples, genomes=CTDG.genomes,
-        #                                 all_genes_blast=CTDG.all_genes)
         one_arg_blast_samples_gw = partial(blast_sampling, gw=True, db=CTDG.db, name_family=CTDG.name_family,
                                            blast_samples=CTDG.blast_samples, genomes=CTDG.genomes,
                                            all_genes_blast=CTDG.all_genes, evalue=CTDG.evalue,
                                            CTDG=CTDG)
         # Run the sampling algorithm
         max_sp_len = max([len(x) for x in set(CTDG.genomes['species'])]) + 2
+        if CTDG.cluster_rows is None:
+            CTDG.delete_intermediates()
+            return None
         print("Analyzing {} proto-cluster(s)".format(len(CTDG.cluster_rows)))
         print("{:<{sp_len}} {:<10} {:<30} {}".format('species', 'duplicates',
                                                     'proto-cluster', 'sample (95P)', sp_len=max_sp_len))
