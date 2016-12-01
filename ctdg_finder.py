@@ -324,9 +324,8 @@ class CtdgRun:
         family_list_filtered = [x for x in self.family_numbers_list if x is not None]
         if len(family_list_filtered) == 0:
             self.delete_intermediates()
-            if len(family_list_filtered) > 0:
-                print("NO CLUSTERS in the {} family".format(self.name_family))
-                return None
+            print("NO CLUSTERS in the {} family".format(self.name_family))
+            return None
         else:
             return pd.DataFrame(family_list_filtered,
                                 columns=['species', 'chromosome', 'cluster', 'start', 'end',
@@ -740,7 +739,7 @@ if __name__ == "__main__":
             ms_result = p.map(p_meanshift_cluster, CTDG.sp_loop(family_blast, ["species", "chromosome"]))
         CTDG.ms_result = list(ms_result)
         # Get number of duplicates, genes and proportions of duplicates per cluster
-        only_clusters_rows = copy(CTDG.only_clusters_rows)
+        # only_clusters_rows = copy(CTDG.only_clusters_rows)
         all_genes = copy(CTDG.all_genes)
         partial_gene_numbers = partial(gene_numbers, all_genes_tab=all_genes)
 
