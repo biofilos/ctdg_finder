@@ -727,11 +727,11 @@ if __name__ == "__main__":
                                              sp_list=CTDG.sp, for_dict=False)
         # End the run if there are not enough blasts
         if CTDG.family_blast is None:
-            CTDG.delete_intermediates()
+            # CTDG.delete_intermediates()
             return None
 
         if CTDG.family_blast.shape[0] == 0:
-            CTDG.delete_intermediates()
+            # CTDG.delete_intermediates()
             raise Exception("Blast output is empty")
         # Run MeanShift in parallel
         family_blast = copy(CTDG.family_blast)
@@ -755,7 +755,7 @@ if __name__ == "__main__":
         # Run the sampling algorithm
         max_sp_len = max([len(x) for x in set(CTDG.genomes['species'])]) + 2
         if CTDG.cluster_rows is None:
-            CTDG.delete_intermediates()
+            # CTDG.delete_intermediates()
             return None
         print("Analyzing {} proto-cluster(s)".format(len(CTDG.cluster_rows)))
         print("{:<{sp_len}} {:<10} {:<30} {}".format('species', 'duplicates',
