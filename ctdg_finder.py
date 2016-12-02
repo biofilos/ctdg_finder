@@ -465,7 +465,7 @@ def meanshift_cluster(ms_sp_table, CTDG):
         try:
             ms.fit(gene_starts)
         except ValueError:
-            print(band_width, sp_mean_shift, chrom_mean_shift, len(proteome))
+            print(band_width, sp_mean_shift, chrom_mean_shift, proteome.shape)
         # The labels are the position of the members of each cluster in the coordinates array
         labels = ms.labels_
         labels_unique = np.unique(labels)
