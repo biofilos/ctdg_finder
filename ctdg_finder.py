@@ -23,6 +23,10 @@ pd.options.mode.chained_assignment = None
 
 
 class CtdgConfig:
+  """
+  This class checks that the ctdgFinder database is present
+  and loads its files
+  """
     def __init__(self, evalue, out_dir, db, blast_samples, sp):
         self.evalue = evalue
         self.sp = sp
