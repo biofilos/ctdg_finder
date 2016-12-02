@@ -443,6 +443,7 @@ def meanshift_cluster(ms_sp_table, CTDG):
     chrom_mean_shift = str(ms_sp_table['chromosome'].values[0])
     proteome = CTDG.all_genes.loc[(CTDG.all_genes['species'] == sp_mean_shift) &
                                  (CTDG.all_genes['chromosome'] == chrom_mean_shift)]
+    proteome.sort_values("start",inplace=True)
     # If there is only one gene, set the cluster to zero -> single-copy gene in the chromosome
     if len(ms_sp_table) == 1:
         ms_sp_table.loc[:, 'cluster'] = 0
