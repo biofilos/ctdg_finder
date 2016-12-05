@@ -604,6 +604,7 @@ function check_d_run(args)
 		       args["name_family"],
 		       counter, num_refs))
 	run_ctdg(args)
+	mv(args["ref_seq"], "$(args["out_dir"])/$(args["ref_seq"])")
       else
 	println("$(args["name_family"]) was already run")
       end
