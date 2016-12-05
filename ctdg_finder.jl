@@ -22,7 +22,6 @@ function parse_commandline()
       help = "Number of samples to build the empirical distribution"
       arg_type = Int
       default = 1000
-      required = true
     "--sp", "-s"
       help = "Restrict the analysis to a species set (optional)"
       nargs = '*'
@@ -178,6 +177,7 @@ function blast_parse(out_file; acc_col=3, sp_list=[],
   # Information about blast size
   blast_size = filesize(out_file) / 1000
   println("Blast results size: $blast_size Kb")
+  println("Running $(args["blast_samples"]) samples")
   if blast_size == 0
     println("Blast output is empty")
     no_records = DataFrame()
@@ -585,6 +585,33 @@ function move_finished(args)
   end
   mv(args["name_family"], "$(args["out_dir"])/$(args["name_family"])")
 end
+
+"""
+Check if a batch analysis needs to be run and
+execute analysis
+"""
+function check_d_run(args)
+  if isdir(args["dir"])
+    counter = 0
+    ref_path = readdir(args["dir"])
+    num_refs = length(ref_path)
+    for fasta = ref_path
+      counter += 1
+      args["ref_seq"] = "$(args["dir"])/$(fasta)"
+      args["name_family"] = split(fasta, '.')[1]
+      if ! ispath(format("{}/{}",args["out_dir"], args["name_family"]))
+	println(format("Running analysis {} ({} of {})",
+		       args["name_family"],
+		       counter, num_refs))
+	run_ctdg(args)
+      else
+	println("$(args["name_family"]) was already run")
+      end
+    end
+  else
+    run_ctdg(args)
+  end
+end
 ## Functions end
 
 # Check if Blast exists
@@ -592,36 +619,18 @@ blast_path, blast_exists = test_blast()
 @assert blast_exists "BlastP does not exist in PATH"
 
 # Parse options
-# args = parse_commandline()
-args = Dict("name_family" => "prl_j",
-	    "db" => "../ctdg_db/ncbi",
-	    "ref_seq" => "sample_query/prolactins.fa",
-	    "blast_samples" => 1000,
-	    "sp" => [],
-	    "out_dir" => "julia_out",
-	    "cpu" => 8,
-	    "evalue" => 1e-3,
-            "dir" => "sample_query",
-	    "iterative" => true)
+args = parse_commandline()
+#args = Dict("name_family" => "prl_j",
+#	    "db" => "../ctdg_db/ncbi",
+#	    "ref_seq" => "sample_query/prolactins.fa",
+#	    "blast_samples" => 1000,
+#	    "sp" => [],
+#	    "out_dir" => "julia_out",
+#	    "cpu" => 8,
+#	    "evalue" => 1e-3,
+#            "dir" => "sample_query",
+#	    "iterative" => true)
 # Check files in CTDG database and load genomes and genes files
 all_genes, genomes = check_db(args["db"])
-if isdir(args["dir"])
-  counter = 0
-  ref_path = readdir(args["dir"])
-  num_refs = length(ref_path)
-  for fasta = ref_path
-    counter += 1
-    args["ref_seq"] = "$(args["dir"])/$(fasta)"
-    args["name_family"] = split(fasta, '.')[1]
-    if ! ispath(format("{}/{}",args["out_dir"], args["name_family"]))
-      println(format("Running analysis {} ({} of {})",
-		     args["name_family"],
-		     counter, num_refs))
-      run_ctdg(args)
-    else
-      println("$(args["name_family"]) was already run")
-    end
-  end
-else
-  run_ctdg(args)
-end
+check_d_run(args)
+
