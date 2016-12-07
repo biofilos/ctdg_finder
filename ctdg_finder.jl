@@ -483,7 +483,6 @@ function sample_table(numbers, all_genes, genomes, args)
   println("$(nrow(numbers)) cluster candidates")
   printfmtln(str_fmt, "Species", "Cluster", "Duplicates", "Percentile 95")
   str_fmt = FormatExpr(col_lengths * "{:>12d}  {:>13.3f}")
-
   for row = eachrow(numbers)
     if row[:cluster] == "na_ms"
       p95 = 0
