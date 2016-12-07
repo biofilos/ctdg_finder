@@ -296,13 +296,24 @@ function MeanShift(blast_table, all_genes, name_family)
     chrom_mean_shift = ms_sp_table[1, :chromosome]
     proteome = all_genes[(all_genes[:species] .== sp_mean_shift)&
     (all_genes[:chromosome] .== chrom_mean_shift), :]
+    sort!(proteome, cols = (:start))
     if nrow(ms_sp_table) > 1
-      gene_distances = proteome[2:end, :start] - proteome[1:end-1, :_end]
-      bandwidth = mean(gene_distances) + std(gene_distances)
       gene_starts = ms_sp_table[:, :start]
       gene_coords = [(x, y) for (x, y) in zip(gene_starts,
                                               zeros(Int, length(gene_starts)))]
+      gene_distances = proteome[2:end, :start] - proteome[1:end-1, :_end]
+      # If there are only two proteins in the scaffold, use only the
+      # mean for estimating the bandwidth
+      if nrow(proteome) == 2
+	bandwidth = abs(gene_distances[1])
+      else
+	bandwidth = mean(gene_distances) + std(gene_distances)
+      end
+
       ms = cl.MeanShift(bandwidth=bandwidth)
+      println(format("sp: {}\nchromosome:{}\ngenes in chromosome: {}\nbandwidth: {}\ngene coords:\n{}\n",
+		     sp_mean_shift, chrom_mean_shift, nrow(proteome),bandwidth, join(gene_coords,"\n")))
+
       group_labels = ms[:fit_predict](gene_coords)
 
       ms_sp_table[:, :cluster] = map((x,y) -> "$(name_family)_" * string(x) * "_" * string(y),
