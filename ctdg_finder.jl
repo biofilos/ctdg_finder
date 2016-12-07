@@ -435,10 +435,11 @@ function sample_sp(numbers_row, all_genes, chrom_table, args)
   max_values = @sync @parallel vcat for i=1:args["blast_samples"]
 
     # Get random chromosome
+    sample_up = 0
     sample_chrom = sample(chroms[:chromosome])
+    
     # Calculate the up limit for sampling chromosome regions
-    sample_space = chroms[chroms[:chromosome] .== sample_chrom, 
-		  :length] - region_len
+    sample_space = chroms[chroms[:chromosome] .== sample_chrom, :length] - region_len
     # Calculate sample
     sample_up = sample(range(1, sample_space[1]))
     sample_start, sample_end = (sample_up, sample_up + region_len)
@@ -468,22 +469,34 @@ a column `perc95_gw`
 function sample_table(numbers, all_genes, genomes, args)
   col_lengths = ""
   for (ix,col) = enumerate([:species, :cluster])
-    max_space = maximum([length(x) for x in numbers[:,col]])
+    spaces = [length(x) for x in numbers[:,col]]
+    if length(spaces) > 0
+      max_space = maximum(spaces)
+    else
+      max_space = 0
+    end
     col_lengths *= "{:$(max_space + 2)s} "
   end
   #col_lengths *= "{:>12s} {:15s}"
   str_fmt = FormatExpr(col_lengths * "{:>12s}  {:15s}")
+  numbers = numbers[numbers[:cluster] .!= "na_ms", :]
+  println("$(nrow(numbers)) cluster candidates")
   printfmtln(str_fmt, "Species", "Cluster", "Duplicates", "Percentile 95")
   str_fmt = FormatExpr(col_lengths * "{:>12d}  {:>13.3f}")
 
   for row = eachrow(numbers)
-    p95 = sample_sp(row, all_genes, genomes, args)
-    row[:perc95_gw] = p95
-    if row[:duplicates] >= p95
-      color = :green
+    if row[:cluster] == "na_ms"
+      p95 = 0
+      color = :gray
     else
-      color = :red
-    end
+      p95 = sample_sp(row, all_genes, genomes, args)
+      if row[:duplicates] >= p95
+	color = :green
+      else
+	color = :red
+      end
+    end 
+    row[:perc95_gw] = p95
     msg = format(str_fmt, row[:species], row[:cluster],
 		 row[:duplicates], row[:perc95_gw])
     print_with_color(color, msg * "\n")
@@ -491,74 +504,82 @@ function sample_table(numbers, all_genes, genomes, args)
   tab_file_name = format("{1}/report/{1}_numbers.csv", args["name_family"])
   writetable(tab_file_name, numbers)
   clean_number = numbers[numbers[:duplicates] .>= numbers[:perc95_gw], :]
+  clusters = unique(clean_number[:cluster])
+  deleteat!(clusters, findin(clusters ,["na_ms","0","na_95"]))
+  clean_numbers = clean_number[findin(clean_number[:cluster], clusters), :]
   for_removal = numbers[numbers[:duplicates] .< numbers[:perc95_gw], :]
   tab_clean_file = replace(tab_file_name, ".csv", "_clean.csv")
-  writetable(tab_clean_file, clean_number)
-  return clean_number, for_removal
+  writetable(tab_clean_file, clean_numbers)
+  return clean_numbers, for_removal
 end
 
 """
 Run analysis
 """
 function run_ctdg(args)
-  # Check that reference sequence exists
-  @assert isfile(args["ref_seq"]) "Reference sequence " * args["ref_seq"] * "does
-  not exist"
-  # Remove incomplete anlayses
-  remove_if_incomplete(args)
+  if isdir(format("{}/{}", args["out_dir"], args["name_family"]))
+    println(format("Results for {} were found in {}",
+		  args["out_dir"], args["name_family"]))
+  else
+    # Check that reference sequence exists
+    @assert isfile(args["ref_seq"]) "Reference sequence " * args["ref_seq"] * "does
+    not exist"
+    # Remove incomplete anlayses
+    remove_if_incomplete(args)
 
-  # If species were selected, check if they exist and filter tables
-  check_sp(args)
+    # If species were selected, check if they exist and filter tables
+    check_sp(args)
 
-  # Create directory structure
-  create_folders(args["name_family"])
+    # Create directory structure
+    create_folders(args["name_family"])
 
-  # Run blast and get new query file if run with --iterative
-  if args["iterative"]
-    pre_blast(args)
+    # Run blast and get new query file if run with --iterative
+    if args["iterative"]
+      pre_blast(args)
+    end
+
+    # Run blast
+    blast_out_file = format("{1}/intermediates/{1}.blast",args["name_family"])
+    blast_exe(blast_path,
+    cpus=args["cpu"],
+    ref=args["ref_seq"],
+    subject=args["db"] * "/all_seqs.fa",
+    out_file= blast_out_file,
+    evalue=args["evalue"])
+    dir = true
+    # Parse blast results
+    parsed_blast = blast_parse(blast_out_file, sp_list=args["sp"])
+    # Run meanshift step
+    MeanShift(parsed_blast, all_genes, args["name_family"])
+    # Get information about the clusters
+    numbers = cluster_numbers(parsed_blast, all_genes)
+    # Run sampling step
+    clean_numbers, for_removal = sample_table(numbers, all_genes, genomes, args)
+    parsed_blast[:order] = [string(x) for x in parsed_blast[:order]]
+    for (sp,clu) = zip(for_removal[:species],for_removal[:cluster])
+      parsed_blast[(parsed_blast[:species] .== sp)&
+		   (parsed_blast[:cluster] .== clu), :cluster] = "na_95"
+    end
+    # Reannotate the order for excluded clusters
+    # This was done here because I did'nt want to change the type of
+    # the column but at the very end
+    parsed_blast[parsed_blast[:cluster] .== "na_95", :order] = "na_95"
+    parsed_blast[parsed_blast[:cluster] .== "na_ms", :order] = "na_ms"
+    gene_file = format("{1}/report/{1}_genes.csv",args["name_family"])
+    writetable(gene_file, parsed_blast)
+    # Filter out non-clustered genes
+    gene_clean_file = replace(gene_file, "genes","genes_clean")
+    # Remove non-clustered order values
+    orders = unique(parsed_blast[:cluster])
+    deleteat!(orders, findin(orders ,["na_ms","0","na_95"]))
+    # Filter out non-clustered genes
+    genes_clean = parsed_blast[findin(parsed_blast[:cluster], orders), :]
+    writetable(gene_clean_file, genes_clean)
+    # Compress and save intermediate files
+    clean_intermediates(args)
+    # Move analysis files to output directory
+    move_finished(args)
   end
-
-  # Run blast
-  blast_out_file = format("{1}/intermediates/{1}.blast",args["name_family"])
-  blast_exe(blast_path,
-  cpus=args["cpu"],
-  ref=args["ref_seq"],
-  subject=args["db"] * "/all_seqs.fa",
-  out_file= blast_out_file,
-  evalue=args["evalue"])
-  dir = true
-  # Parse blast results
-  parsed_blast = blast_parse(blast_out_file, sp_list=args["sp"])
-  # Run meanshift step
-  MeanShift(parsed_blast, all_genes, args["name_family"])
-  # Get information about the clusters
-  numbers = cluster_numbers(parsed_blast, all_genes)
-  # Run sampling step
-  clean_numbers, for_removal = sample_table(numbers, all_genes, genomes, args)
-  parsed_blast[:order] = [string(x) for x in parsed_blast[:order]]
-  for (sp,clu) = zip(for_removal[:species],for_removal[:cluster])
-    parsed_blast[(parsed_blast[:species] .== sp)&
-		 (parsed_blast[:cluster] .== clu), :cluster] = "na_95"
-  end
-  # Reannotate the order for excluded clusters
-  # This was done here because I did'nt want to change the type of
-  # the column but at the very end
-  parsed_blast[parsed_blast[:cluster] .== "na_95", :order] = "na_95"
-  parsed_blast[parsed_blast[:cluster] .== "na_ms", :order] = "na_ms"
-  gene_file = format("{1}/report/{1}_genes.csv",args["name_family"])
-  writetable(gene_file, parsed_blast)
-  # Filter out non-clustered genes
-  gene_clean_file = replace(gene_file, "genes","genes_clean")
-  # Remove non-clustered order values
-  orders = unique(parsed_blast[:cluster])
-  deleteat!(orders, findin(orders ,["na_ms","0","na_95"]))
-  # Filter out non-clustered genes
-  genes_clean = parsed_blast[findin(parsed_blast[:cluster], orders), :]
-  writetable(gene_clean_file, genes_clean)
-  # Compress and save intermediate files
-  clean_intermediates(args)
-  # Move analysis files to output directory
-  move_finished(args)
 end
 
 """
@@ -592,21 +613,45 @@ execute analysis
 """
 function check_d_run(args)
   if isdir(args["dir"])
+    println("Running batch analysis")
     counter = 0
     ref_path = readdir(args["dir"])
     num_refs = length(ref_path)
     for fasta = ref_path
+      println(fasta)
       counter += 1
       args["ref_seq"] = "$(args["dir"])/$(fasta)"
-      args["name_family"] = split(fasta, '.')[1]
-      if ! ispath(format("{}/{}",args["out_dir"], args["name_family"]))
+      if isfile(args["ref_seq"])
+	args["name_family"] = split(fasta, '.')[1]
 	println(format("Running analysis {} ({} of {})",
 		       args["name_family"],
 		       counter, num_refs))
 	run_ctdg(args)
-	mv(args["ref_seq"], "$(args["out_dir"])/$(args["ref_seq"])")
-      else
-	println("$(args["name_family"]) was already run")
+	clustered_genes = readtable(format("{1}/{2}/report/{2}_genes_clean.csv", 
+				    args["out_dir"], args["name_family"]))
+	if ! isdir("skipped")
+	  mkdir("skipped")
+	end
+	move_accs = clustered_genes[:prot_acc]
+	accs_to_move = length(move_accs)
+	accs_passed = 0
+	#println(move_accs[1])
+	for seq=readdir(args["dir"])
+	  
+	  for acc=move_accs
+	    if contains(seq, acc)
+	      seq = format("{}/{}",args["dir"], seq)
+	      dest = "skipped/" * (split(seq, "/")[end])
+	      mv(seq, dest)
+	      accs_passed += 1
+	    end
+	  end
+	  if accs_passed == accs_to_move
+	    break
+	  end
+
+	end
+	mv(args["ref_seq"], format("{1}/{2}/{2}.fa", args["out_dir"], args["name_family"]))
       end
     end
   else
@@ -621,17 +666,6 @@ blast_path, blast_exists = test_blast()
 
 # Parse options
 args = parse_commandline()
-#args = Dict("name_family" => "prl_j",
-#	    "db" => "../ctdg_db/ncbi",
-#	    "ref_seq" => "sample_query/prolactins.fa",
-#	    "blast_samples" => 1000,
-#	    "sp" => [],
-#	    "out_dir" => "julia_out",
-#	    "cpu" => 8,
-#	    "evalue" => 1e-3,
-#            "dir" => "sample_query",
-#	    "iterative" => true)
-# Check files in CTDG database and load genomes and genes files
 all_genes, genomes = check_db(args["db"])
 check_d_run(args)
 
