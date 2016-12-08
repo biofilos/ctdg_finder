@@ -665,7 +665,11 @@ function check_d_run(args)
 	end
 	println("Source" * args["ref_seq"])
 	println(format("Destination: {1}/{2}/{2}.fa", args["out_dir"], args["name_family"]))
-	mv(args["ref_seq"], format("{1}/{2}/{2}.fa", args["out_dir"], args["name_family"]))
+	seq1 = args["ref_seq"]
+	dest1 = format("{1}/{2}/{2}.fa", args["out_dir"], args["name_family"])
+	if isfile(seq1)
+	 mv(seq1, dest1)
+       end
       end
     end
   else
