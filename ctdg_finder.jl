@@ -652,7 +652,9 @@ function check_d_run(args)
 	    if contains(seq, acc)
 	      seq = format("{}/{}",args["dir"], seq)
 	      dest = "skipped/" * (split(seq, "/")[end])
-	      mv(seq, dest)
+	      if isfile(seq)
+		mv(seq, dest)
+	      end
 	      accs_passed += 1
 	    end
 	  end
