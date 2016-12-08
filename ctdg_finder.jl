@@ -311,8 +311,8 @@ function MeanShift(blast_table, all_genes, name_family)
       end
 
       ms = cl.MeanShift(bandwidth=bandwidth)
-      println(format("sp: {}\nchromosome:{}\ngenes in chromosome: {}\nbandwidth: {}\ngene coords:\n{}\n",
-		     sp_mean_shift, chrom_mean_shift, nrow(proteome),bandwidth, join(gene_coords,"\n")))
+      #println(format("sp: {}\nchromosome:{}\ngenes in chromosome: {}\nbandwidth: {}\ngene coords:\n{}\n",
+	#	     sp_mean_shift, chrom_mean_shift, nrow(proteome),bandwidth, join(gene_coords,"\n")))
 
       group_labels = ms[:fit_predict](gene_coords)
 
@@ -661,6 +661,8 @@ function check_d_run(args)
 	  end
 
 	end
+	println("Source" * args["ref_seq"])
+	println(format("Destination: {1}/{2}/{2}.fa", args["out_dir"], args["name_family"]))
 	mv(args["ref_seq"], format("{1}/{2}/{2}.fa", args["out_dir"], args["name_family"]))
       end
     end
