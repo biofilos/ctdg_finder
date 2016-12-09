@@ -447,6 +447,9 @@ function sample_sp(numbers_row, all_genes, chrom_table, args)
 
     # Get random chromosome
     sample_up = 0
+    if length(chroms[:chromosome]) == 0
+      println(format("sp table: {}|region length: {}|species: {}", nrow(sp_table), region_len, sp))
+    end
     sample_chrom = sample(chroms[:chromosome])
     
     # Calculate the up limit for sampling chromosome regions
