@@ -32,7 +32,7 @@ function parse_commandline()
     "--cpu", "-c"
       help = "Number of CPUs to use"
       arg_type = Int
-      default = 1
+      default = 6
     "--db", "-d"
       help = "Database to use"
       required = true
@@ -635,47 +635,48 @@ function check_d_run(args)
       counter += 1
       args["ref_seq"] = "$(args["dir"])/$(fasta)"
       if isfile(args["ref_seq"])
-	args["name_family"] = split(fasta, '.')[1]
-	println(format("Running analysis {} ({} of {})",
-		       args["name_family"],
-		       counter, num_refs))
-	run_ctdg(args)
-	clustered_genes = readtable(format("{1}/{2}/report/{2}_genes_clean.csv", 
-				    args["out_dir"], args["name_family"]))
-	if ! isdir("skipped")
-	  mkdir("skipped")
-	end
-	move_accs = clustered_genes[:prot_acc]
-	accs_to_move = length(move_accs)
-	accs_passed = 0
-	#println(move_accs[1])
-	for seq=readdir(args["dir"])
-	  
-	  for acc=move_accs
-	    if contains(seq, acc)
-	      seq = format("{}/{}",args["dir"], seq)
-	      dest = "skipped/" * (split(seq, "/")[end])
-	      if isfile(seq)
-		mv(seq, dest)
-	      end
-	      accs_passed += 1
-	    end
-	  end
-	  if accs_passed == accs_to_move
-	    break
-	  end
+        args["name_family"] = split(fasta, '.')[1]
+        println(format("Running analysis {} ({} of {})",
+                 args["name_family"],
+                 counter, num_refs))
+        run_ctdg(args)
+        clustered_genes = readtable(format("{1}/{2}/report/{2}_genes_clean.csv", 
+                  args["out_dir"], args["name_family"]))
+        if ! isdir("skipped")
+          mkdir("skipped")
+        end
+        move_accs = clustered_genes[:prot_acc]
+        accs_to_move = length(move_accs)
+        accs_passed = 0
+        #println(move_accs[1])
+        for seq=readdir(args["dir"])
+          
+          for acc=move_accs
+            if contains(seq, acc)
+              seq = format("{}/{}",args["dir"], seq)
+              dest = "skipped/" * (split(seq, "/")[end])
+              if isfile(seq)
+                mv(seq, dest)
+              end
+              accs_passed += 1
+            end
+          end
+          if accs_passed == accs_to_move
+            break
+          end
 
-	end
-	println("Source" * args["ref_seq"])
-	println(format("Destination: {1}/{2}/{2}.fa", args["out_dir"], args["name_family"]))
-	seq1 = args["ref_seq"]
-	dest1 = format("{1}/{2}/{2}.fa", args["out_dir"], args["name_family"])
-	if isfile(seq1)
-	 mv(seq1, dest1)
-       end
+        end
+        println("Source" * args["ref_seq"])
+        println(format("Destination: {1}/{2}/{2}.fa", args["out_dir"], args["name_family"]))
+        seq1 = args["ref_seq"]
+        dest1 = format("{1}/{2}/{2}.fa", args["out_dir"], args["name_family"])
+        if isfile(seq1)
+          mv(seq1, dest1)
+        end
       end
     end
   else
+
     run_ctdg(args)
   end
 end
@@ -688,5 +689,5 @@ blast_path, blast_exists = test_blast()
 # Parse options
 args = parse_commandline()
 all_genes, genomes = check_db(args["db"])
-check_d_run(args)
+@time check_d_run(args)
 
