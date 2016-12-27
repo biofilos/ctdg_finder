@@ -41,5 +41,9 @@ for table in glob('{}/*.blast_out'.format(blast_folder)):
             json_str = json.dumps(table_dict)
             json_out.write(json_str)
 
+    with open(table.replace('.blast_out', '.json'), 'w') as json_out:
+        json_str = json.dumps(table_dict)
+        json_out.write(json_str)
+
     table_file_name = table.split('/')[-1]
     os.rename(table, table.replace(table_file_name, "done/" + table_file_name))

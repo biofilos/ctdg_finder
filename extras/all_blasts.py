@@ -6,7 +6,7 @@ from Bio import SeqIO
 ctdg_path = sys.argv[0].replace("extras/all_blasts.py", "")
 
 sys.path.append(ctdg_path)
-from ctdg_finder import CTDG
+from ctdg_finder import CtdgRun, CtdgConfig
 
 '''
 This script runs the blast step of CTDGFinder.
@@ -19,7 +19,8 @@ are needed
 # Specify directory where the blast database is located
 all_seqs = sys.argv[1]
 out_dir = sys.argv[2]
-cpus = sys.argv[3]
+db = sys.argv[3]
+cpus = sys.argv[4]
 
 # Create directory if necessary
 if not os.path.exists(out_dir):
@@ -38,9 +39,12 @@ for gene in SeqIO.parse(all_seqs, 'fasta'):
         fileO.close()
 
 # Run Blast step for each proteome
+ctdg_config = CtdgConfig(out_dir=out_dir, db=db, blast_samples=1000, evalue=1, sp=[])
+ctdg_config.check_arguments()
+ctdg_config.init_tables()
+
 for input_file in glob("{}/*.fasta".format(out_dir)):
-    ctdg = CTDG(name_family="all_blast", evalue=1, out_dir=out_dir, db=all_seqs,
-                blast_samples=0, sp=[], ref_sequence=input_file)
+    ctdg = CtdgRun(ctdg_config, name_family="all_blast", ref_sequence=input_file)
     output_file = input_file.replace('fasta', 'blast')
     sp = input_file.replace('.fasta', '').split('/')[-1]
     if not os.path.exists(output_file):

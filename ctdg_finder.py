@@ -614,7 +614,7 @@ def blast_sampling(pre_cluster_table, gw, db, name_family, blast_samples, genome
                                              (all_genes_blast.start >= random_start) &
                                              (all_genes_blast.end <= random_end)].index.values
         if len(proteome_slice) > 0:
-            chrom_duplicates = sp_duplicates[chromosome]
+            chrom_duplicates = json.loads(open("{}/blasts/{}_{}.json".format(db, sp, chromosome)).read())
             max_duplicates = grab_duplicates(list(proteome_slice), chrom_duplicates, evalue)
             current_sample = [i, sp, chromosome, random_start, random_end, max_duplicates]
             sample_coords.append(current_sample)
