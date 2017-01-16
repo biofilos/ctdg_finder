@@ -81,7 +81,7 @@ function check_db(dir)
   genomes = readtable(dir * "/chromosomes.csv")
   genes = readtable(dir * "/genes_parsed.csv")
   # Only use columns of interest
-  genomes = genomes[:, [:species, :chromosome, :length]]
+  genomes = genomes[:, [:species, :chromosome, :length, :bandwidth]]
   genes = genes[:, [:acc, :chromosome, :species, :symbol,
 		    :start, :_end, :strand, :length]]
   genes[:, :strand] = map(int2str, genes[:, :strand])
@@ -294,21 +294,32 @@ function MeanShift(blast_table, all_genes, name_family)
   for ms_sp_table=groupby(blast_table, [:species, :chromosome])
     sp_mean_shift = ms_sp_table[1, :species]
     chrom_mean_shift = ms_sp_table[1, :chromosome]
-    proteome = all_genes[(all_genes[:species] .== sp_mean_shift)&
-    (all_genes[:chromosome] .== chrom_mean_shift), :]
-    sort!(proteome, cols = (:start))
+    # println(format("{},{}", sp_mean_shift, chrom_mean_shift))
+    # proteome = all_genes[(all_genes[:species] .== sp_mean_shift)&
+    # (all_genes[:chromosome] .== chrom_mean_shift), :]
+    # sort!(proteome, cols = (:start))
     if nrow(ms_sp_table) > 1
+      bandwidth = genomes[(genomes[:species].==sp_mean_shift)&
+                   (genomes[:chromosome].==chrom_mean_shift), :bandwidth][1]
       gene_starts = ms_sp_table[:, :start]
       gene_coords = [(x, y) for (x, y) in zip(gene_starts,
                                               zeros(Int, length(gene_starts)))]
-      gene_distances = proteome[2:end, :start] - proteome[1:end-1, :_end]
+      # pre_distances = proteome[2:end, :start] - proteome[1:end-1, :_end]
+      # # If there are overlapping genes in different orientations, it might
+      # #result in a negative value, for that reason, in cases where negative
+      # # distances are obtained, calculate the distance using both start coords
+      # gene_distances = pre_distances[pre_distances .> 0]
+      # for i = find(pre_distances .<0)
+      #   dist = proteome[i+1,:start] + proteome[i, :start]
+      #   push!(gene_distances, dist)
+      # end
       # If there are only two proteins in the scaffold, use only the
       # mean for estimating the bandwidth
-      if nrow(proteome) == 2
-	bandwidth = abs(gene_distances[1])
-      else
-	bandwidth = mean(gene_distances) + std(gene_distances)
-      end
+      # if nrow(proteome) == 2
+	    #   bandwidth = abs(gene_distances[1])
+      # else
+	    #   bandwidth = mean(gene_distances) + std(gene_distances)
+      # end
 
       ms = cl.MeanShift(bandwidth=bandwidth)
       #println(format("sp: {}\nchromosome:{}\ngenes in chromosome: {}\nbandwidth: {}\ngene coords:\n{}\n",
@@ -451,7 +462,7 @@ function sample_sp(numbers_row, all_genes, chrom_table, args)
       println(format("sp table: {}|region length: {}|species: {}", nrow(sp_table), region_len, sp))
     end
     sample_chrom = sample(chroms[:chromosome])
-    
+
     # Calculate the up limit for sampling chromosome regions
     sample_space = chroms[chroms[:chromosome] .== sample_chrom, :length] - region_len
     # Calculate sample
@@ -477,7 +488,7 @@ end
 
 """
 Calculate the maximum number of duplicates in the samples
-specified by `blast_samples` and return the table with the 
+specified by `blast_samples` and return the table with the
 a column `perc95_gw`
 """
 function sample_table(numbers, all_genes, genomes, args)
@@ -508,7 +519,7 @@ function sample_table(numbers, all_genes, genomes, args)
       else
 	color = :red
       end
-    end 
+    end
     row[:perc95_gw] = p95
     msg = format(str_fmt, row[:species], row[:cluster],
 		 row[:duplicates], row[:perc95_gw])
@@ -640,7 +651,7 @@ function check_d_run(args)
                  args["name_family"],
                  counter, num_refs))
         run_ctdg(args)
-        clustered_genes = readtable(format("{1}/{2}/report/{2}_genes_clean.csv", 
+        clustered_genes = readtable(format("{1}/{2}/report/{2}_genes_clean.csv",
                   args["out_dir"], args["name_family"]))
         if ! isdir("skipped")
           mkdir("skipped")
@@ -650,7 +661,7 @@ function check_d_run(args)
         accs_passed = 0
         #println(move_accs[1])
         for seq=readdir(args["dir"])
-          
+
           for acc=move_accs
             if contains(seq, acc)
               seq = format("{}/{}",args["dir"], seq)
@@ -690,4 +701,3 @@ blast_path, blast_exists = test_blast()
 args = parse_commandline()
 all_genes, genomes = check_db(args["db"])
 @time check_d_run(args)
-

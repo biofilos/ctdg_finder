@@ -576,7 +576,7 @@ def grab_duplicates(acc_list, duplicates, evalue):
 def blast_sampling(pre_cluster_table, gw, db, name_family, blast_samples, genomes, all_genes_blast, evalue, CTDG):
     sp = pre_cluster_table.loc[:, 'species'].values[0]
     # Load blast hits with queries from the species
-    sp_duplicates = json.loads(open("{}/blasts/{}.json".format(db, sp)).read())
+    #sp_duplicates = json.loads(open("{}/blasts/{}.json".format(db, sp)).read())
     cluster = pre_cluster_table.loc[:, 'cluster'].values[0]
     cluster_length = abs(pre_cluster_table.loc[:, 'end'].values[0] - pre_cluster_table.loc[:, 'start'].values[0])
     # Set output directory depending of the type of sampling
