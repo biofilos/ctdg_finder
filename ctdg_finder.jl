@@ -55,6 +55,7 @@ end
 Test if `blastp` exists in PATH
 """
 function test_blast()
+  # return (./blastp, true)
   blast_exist = false
   blast_path = "None"
   for path = split(ENV["PATH"],":")
@@ -677,7 +678,7 @@ function check_d_run(args)
           end
 
         end
-        println("Source" * args["ref_seq"])
+        println("Source: " * args["ref_seq"])
         println(format("Destination: {1}/{2}/{2}.fa", args["out_dir"], args["name_family"]))
         seq1 = args["ref_seq"]
         dest1 = format("{1}/{2}/{2}.fa", args["out_dir"], args["name_family"])
