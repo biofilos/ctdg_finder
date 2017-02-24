@@ -15,10 +15,15 @@ function parse_commandline()
     "--name_family", "-n"
       help = "Name of gene family"
       required = false
-    "--ref_seq", "-r"
+    "--fasta_ref", "-f"
       help = "Reference sequence (query)"
       required = false
-    "--blast_samples", "-b"
+    "--hmm_ref", "H"
+      help="query HMM"
+      required= false
+      arg_type = String
+      default = "None"
+    "--blast_samples", "-S"
       help = "Number of samples to build the empirical distribution"
       arg_type = Int
       default = 1000
@@ -36,8 +41,11 @@ function parse_commandline()
     "--db", "-d"
       help = "Database to use"
       required = true
-    "--evalue", "-e"
-      help = "E-value threshold"
+    "--evalue", "e"
+      help="HMMer Evalue cutoff"
+      required= false
+    "--bitscore", "-b"
+      help = "Standardized bitscore threshold"
       arg_type = Float64
       default = 1e-3
      "--dir", "-D"
@@ -52,20 +60,20 @@ end
 
 # Functions
 """
-Test if `blastp` exists in PATH
+Test if `HMMer` exists in PATH
 """
-function test_blast()
-  # return (./blastp, true)
-  blast_exist = false
-  blast_path = "None"
+function test_hmmer()
+  # return (./hmmsearch, true)
+  hmmer_exist = false
+  hmmer_path = "None"
   for path = split(ENV["PATH"],":")
-    blast_path = path * "/blastp"
-    if ispath(blast_path)
-      blast_exist = true
+    if ispath(path * "/hmmsearch") && ispath(path * "/hmmscan")
+      hmmer_exist = true
+      hmmer_path = path
       break
     end
   end
-  return (blast_path, blast_exist)
+  return (hmmer_path, hmmer_exist)
 end
 
 """
@@ -75,8 +83,7 @@ function check_db(dir)
   int2str = x -> string(x)
   @assert ispath(dir) "Directory with CTDG database does not exist"
   db_files = readdir(dir)
-  for i in ["all_seqs.fa", "all_seqs.fa.phr", "all_seqs.fa.pin",
-            "all_seqs.fa.psq", "chromosomes.csv","genes_parsed.csv", "blasts"]
+  for i in ["pfam","chromosomes.csv","genes_parsed.csv", "hmmer"]
     @assert i in db_files "$i does not exist in $dir"
   end
   genomes = readtable(dir * "/chromosomes.csv")
@@ -123,18 +130,97 @@ function create_folders(name_family)
   end
 end
 
-"""
-Execute blast search
-"""
-function blast_exe(blast_path;cpus=1, ref=None,
-  subject=None, out_file=None, evalue=None)
-  fmt1 = "6 qseqid sseqid qlen slen qstart qend sstart send length "
-  fmt2 = "gaps gapopen evalue bitscore"
-  fmt = fmt1 * fmt2
-  println("Running blast with E-value = $evalue")
-  run(`$blast_path -db $subject -query $ref -out $out_file
-  -evalue $evalue  -outfmt $fmt -num_threads $cpus`)
+function save_pfams(hmmer_out)
+  println("processing Pfam output")
+  # pfams = []
+  pfam_name = replace(hmmer_out, ".pre_hmmer", ".pfams")
+  fileO = open(pfam_name, "w")
+  for line in eachline(open(hmmer_out))
+    if line[1] != '#'
+      data_line = [x for x in split(line, ' ') if length(x) > 0]
+      pfam = data_line[1]
+      # push!(pfams, pfam)
+      write(fileO, pfam*"\n")
+    elseif contains(line, "[ok]")
+      close(fileO)
+      return pfam_name
+  end
+  end
 end
+
+"""
+Execute HMMscan search
+"""
+function hmmscan(hmmer_path; cpus=1, ref="None",
+  db="", out_file="", evalue=1, hmm="None")
+  db_hmm = db * "/../pfam/pfam.hmm"
+  all_seqs = db * "/seqs_hmmer.fa"
+  if ref != "None"
+    hmmer_scan = hmmer_path* "/hmmscan"
+    hmmer_search = hmmer_path * "/hmmsearch"
+    hmmer_hmmfetch = hmmer_path * "/hmmfetch"
+    hmmer_hmmemit = hmm_path * "/hmmemit"
+    long_out = out_file * "_long"
+    println("Running HMMscan with E-value = $evalue")
+    run(`$hmmer_scan -o $long_out --tblout $out_file
+    -E $evalue --cpu $cpus $db_hmm $ref`)
+    # Save Pfam accessions on a file
+    pfams = save_pfams(out_file)
+    # Save Pfam HMMs in a file
+    hmm = replace(pfams, ".pfams", ".hmm")
+    run(`$hmmer_hmmfetch -f -o $hmm $db_hmm $pfams`)
+  end
+  # Run HMMer search
+  hmmer_out = replace(out_file, ".pre_hmmer", ".hmmer")
+  hmmer_out_long = hmmer_out * "_long"
+  hmmer_dom = replace(hmmer_out_long, "long","dom")
+  run(`$hmmer_search -E $evalue -o $hmmer_out_long --domtblout $hmmer_dom
+  --tblout $hmmer_out --cpu $cpus $hmm $all_seqs`)
+
+   emit_out = hmm * "_fa"
+   run(`$hmmer_hmmemit -o $emit_out $hmm`)
+   hmmsearch_ref = replace(emit_out, "_fa", "hmmer")
+   hmmsearch_ref_long = hmmsearch_ref * "_long"
+   hmmsearch_ref_dom = replace(hmmsearch_ref_long, "long", "dom")
+   run(`$hmmer_search -E $evalue -o $hmmsearch_ref_long
+   --domtblout $hmmsearch_ref_dom --tblout $hmmsearch_ref
+   --cpu $cpus $hmm $emit_out`)
+  return hmmer_out
+end
+
+
+
+
+
+using DataFrames
+function parse_hmmer(hmmer_out, genes_table)
+  hits_dict = Dict()
+  hits_list = []
+  for line = eachline(open(hmmer_out))
+    if line[1] != '#'
+      data_line = [x for x in split(line, ' ') if length(x) > 0]
+      acc, pfam_acc = split(data_line[1],'|')[2], data_line[3]
+      if ! haskey(hits_dict, pfam_acc)
+        hits_dict[pfam_acc] = [acc]
+      else
+        push!(hits_dict[pfam_acc], acc)
+      end
+    elseif contains(line, "[ok]")
+      break
+    end
+  end
+  genes_table[:,:pfam] = "0"
+  for (pfam_acc, acc) = hits_dict
+    genes_table[findin(genes_table[:acc],Array(acc)),:pfam] = pfam_acc
+  end
+  genes_pfam = genes_table[genes_table[:pfam] .!= "0", :]
+  return genes_pfam
+end
+
+genes_table = readtable("../ctdg_db/mammals/intermediates/manual/genes_raw.csv")
+hit_list = parse_hmmer("prl.hmmer", genes_table)
+
+
 """
 Calculates the length overlapping ratio
 Input: dataframe with columns `q_len` and `s_len`
@@ -256,33 +342,6 @@ function parse_seq_db(db)
   return seq_dict
 end
 
-
-"""
-If run in iterative mode `iterative`, run blast, gather sequences from
-results, and change the query to the new sequence file
-"""
-function pre_blast(args)
-  println("Running blast search step to extend query (--iterative)")
-  blast_out_file = format("{1}/intermediates/pre_{1}.blast",args["name_family"])
-  blast_exe(blast_path,
-  cpus=args["cpu"],
-  ref=args["ref_seq"],
-  subject=args["db"] * "/all_seqs.fa",
-  out_file= blast_out_file,
-  evalue=args["evalue"])
-
-  pre_family_blast = blast_parse(blast_out_file, sp_list=args["sp"])
-  seq_dict = parse_seq_db(args["db"])
-  name_family = args["name_family"]
-  new_query = format("{1}/intermediates/{1}_ext_query.fa", name_family)
-  open(new_query, "w") do f
-    for seq=pre_family_blast[:prot_acc]
-      seq_str = string(seq_dict[seq])
-      write(f, ">$(seq)\n$(seq_str)\n")
-    end
-  end
-  args["ref_seq"] = new_query
-end
 
 """
 Run the meanshift algorithm (prom Python scikit-learn) and annotate
@@ -558,19 +617,17 @@ function run_ctdg(args)
     # Create directory structure
     create_folders(args["name_family"])
 
-    # Run blast and get new query file if run with --iterative
-    if args["iterative"]
-      pre_blast(args)
-    end
+    hmmer_out_file = format("{1}/intermediates/{1}.pre_hmmer",args["name_family"])
 
-    # Run blast
-    blast_out_file = format("{1}/intermediates/{1}.blast",args["name_family"])
-    blast_exe(blast_path,
-    cpus=args["cpu"],
-    ref=args["ref_seq"],
-    subject=args["db"] * "/all_seqs.fa",
-    out_file= blast_out_file,
-    evalue=args["evalue"])
+    hmm_out = hmmscan(hmmer_path,
+                      cpus=args["cpu"],
+                      ref=args["fasta_ref"],
+                      db = args["db"],
+                      out_file=hmmer_out_file,
+                      evalue=args["evalue"],
+                      hmm=args["hmm_ref"])
+
+
     dir = true
     # Parse blast results
     parsed_blast = blast_parse(blast_out_file, sp_list=args["sp"])
@@ -695,8 +752,8 @@ end
 ## Functions end
 
 # Check if Blast exists
-blast_path, blast_exists = test_blast()
-@assert blast_exists "BlastP does not exist in PATH"
+hmmer_path, hmmer_exists = test_hmmer()
+@assert hmmer_exists "HMMer does not exist in PATH"
 
 # Parse options
 args = parse_commandline()
