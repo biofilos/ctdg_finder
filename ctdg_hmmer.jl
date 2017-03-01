@@ -13,6 +13,63 @@ using Formatting
 # using CP
 @pyimport sklearn.cluster as cl
 
+"""
+Parse script options
+"""
+function parse_commandline()
+  s = ArgParseSettings()
+  @add_arg_table s begin
+    "--name_family", "-n"
+      help = "Name of gene family"
+      required = false
+    "--ref_seq", "-f"
+      help = "Reference sequence (query)"
+      required = false
+    "--hmm_ref", "-p"
+      help="query HMM"
+      required= false
+      arg_type = String
+      default = "None"
+    "--hmmer_samples", "-S"
+      help = "Number of samples to build the empirical distribution"
+      arg_type = Int
+      default = 1000
+    "--sp", "-s"
+      help = "Restrict the analysis to a species set (optional)"
+      nargs = '*'
+      action = :append_arg
+    "--out_dir", "-o"
+      help = "Output directory"
+      default = "CTDG_out"
+    "--cpu", "-c"
+      help = "Number of CPUs to use"
+      arg_type = Int
+      default = 1
+    "--db", "-d"
+      help = "Database to use"
+      required = true
+  end
+  return parse_args(s)
+end
+
+function check_db(dir)
+  int2str = x -> string(x)
+  @assert ispath(dir) "Directory with CTDG database does not exist"
+  db_files = readdir(dir)
+  for i in ["pfam","chromosomes.csv","genes_parsed.csv", "hmmer"]
+    @assert i in db_files "$i does not exist in $dir"
+  end
+  genomes = readtable(dir * "/chromosomes.csv")
+  genes = readtable(dir * "/genes_parsed.csv")
+  pfam_dict = JSON.parsefile(dir * "/hmmer/pfam.json")
+  # Only use columns of interest
+  genomes = genomes[:, [:species, :chromosome, :length, :bandwidth]]
+  genes = genes[:, [:acc, :chromosome, :species, :symbol,
+		    :start, :_end, :strand, :length]]
+  genes[:, :strand] = map(int2str, genes[:, :strand])
+  genes[:, :chromosome] = map(int2str, genes[:, :chromosome])
+  return (genes, genomes, pfam_dict)
+end
 
 """
 Test if `HMMer` exists in PATH
@@ -29,27 +86,6 @@ function test_hmmer()
     end
   end
   return (hmmer_path, hmmer_exist)
-end
-
-"""
-Checks that the CTDG database contains the correct files
-"""
-function check_db(dir)
-  int2str = x -> string(x)
-  @assert ispath(dir) "Directory with CTDG database does not exist"
-  db_files = readdir(dir)
-  for i in ["pfam","chromosomes.csv","genes_parsed.csv", "hmmer"]
-    @assert i in db_files "$i does not exist in $dir"
-  end
-  genomes = readtable(dir * "/chromosomes.csv")
-  genes = readtable(dir * "/genes_parsed.csv")
-  # Only use columns of interest
-  genomes = genomes[:, [:species, :chromosome, :length, :bandwidth]]
-  genes = genes[:, [:acc, :chromosome, :species, :symbol,
-		    :start, :_end, :strand, :length]]
-  genes[:, :strand] = map(int2str, genes[:, :strand])
-  genes[:, :chromosome] = map(int2str, genes[:, :chromosome])
-  return (genes, genomes)
 end
 
 """
@@ -116,16 +152,16 @@ function hmmscan(hmmer_path; cpus=1, ref="None",
   if ref != "None"
     hmmer_scan = hmmer_path* "/hmmscan"
     out_file = format("{1}/intermediates/{1}.pre_hmmer", name_family)
+    dom_out = out_file * "_dom"
     long_out = out_file * "_long"
     println("Running HMMscan with E-value = $evalue")
-    run(`$hmmer_scan -o $long_out --tblout $out_file
+    run(`$hmmer_scan -o $long_out --tblout $out_file --domtblout $dom_out
     -E $evalue --cpu $cpus $db_hmm $ref`)
     # Save Pfam accessions on a file
     pfams = save_pfams(name_family, out_file)
   else
     pfams = [pfam]
   end
-  # genes[:, :pfam] = ""
   genes_dict = Dict()
   for pfam = pfams
     gene_list = pfam_dict[pfam]
@@ -354,8 +390,10 @@ function sample_table(numbers, all_genes, genomes, name_family,  args)
   #col_lengths *= "{:>12s} {:15s}"
   str_fmt = FormatExpr(col_lengths * "{:>12s}  {:15s}")
   numbers = numbers[numbers[:cluster] .!= "na_ms", :]
-  println("$(nrow(numbers)) cluster candidates")
-  printfmtln(str_fmt, "Species", "Cluster", "Duplicates", "Percentile 95")
+  if nrow(numbers) >0
+    println("$(nrow(numbers)) cluster candidates")
+    printfmtln(str_fmt, "Species", "Cluster", "Duplicates", "Percentile 95")
+  end
   str_fmt = FormatExpr(col_lengths * "{:>12d}  {:>13.3f}")
   for row = eachrow(numbers)
     if row[:cluster] == "na_ms"
@@ -364,9 +402,9 @@ function sample_table(numbers, all_genes, genomes, name_family,  args)
     else
       p95 = sample_sp(row, all_genes, genomes, args)
       if row[:duplicates] >= p95
-	color = :green
+	       color = :green
       else
-	color = :red
+	       color = :red
       end
     end
     row[:perc95_gw] = p95
@@ -374,16 +412,12 @@ function sample_table(numbers, all_genes, genomes, name_family,  args)
 		 row[:duplicates], row[:perc95_gw])
     print_with_color(color, msg * "\n")
   end
-  tab_file_name = format("{1}/report/{1}_numbers.csv", name_family)
-  writetable(tab_file_name, numbers)
   clean_number = numbers[numbers[:duplicates] .>= numbers[:perc95_gw], :]
   clusters = unique(clean_number[:cluster])
   deleteat!(clusters, findin(clusters ,["na_ms","0","na_95"]))
   clean_numbers = clean_number[findin(clean_number[:cluster], clusters), :]
   for_removal = numbers[numbers[:duplicates] .< numbers[:perc95_gw], :]
-  tab_clean_file = replace(tab_file_name, ".csv", "_clean.csv")
-  writetable(tab_clean_file, clean_numbers)
-  return clean_numbers, for_removal
+  return numbers, for_removal, clean_numbers
 end
 
 """
@@ -412,38 +446,31 @@ function move_finished(args)
 end
 
 
-name_family = "prl"
-remove_if_incomplete(name_family)
-create_folders(name_family)
+# name_family = "prl"
+
 
 hmm_path = "/usr/local/bin"
-genes = readtable("../ctdg_db/mammals/genes_parsed.csv")
-pfam_d = JSON.parsefile("../ctdg_db/mammals/hmmer/pfam.json")
-genomes = readtable("../ctdg_db/mammals/chromosomes.csv")
-ref_seq = "sample_query/prl.fa"
-db = "../ctdg_db/mammals"
-hmmer_samples = 1000
 
+args = parse_commandline()
+remove_if_incomplete(args["name_family"])
+create_folders(args["name_family"])
+genes, genomes, pfam_d = check_db(args["db"])
 
-args = Dict("db" => db,"name_family"=> name_family,
-            "hmmer_samples" => hmmer_samples,
-            "out_dir" => "CTDG_out")
+hmm_out = hmmscan(hmm_path,
+cpus=args["cpu"], ref=args["ref_seq"],
+db=args["db"], evalue=0.0001, genes=genes,
+pfam_dict=pfam_d, name_family=args["name_family"])
 
-
-hmm_out = hmmscan(hmm_path, cpus=8, ref=ref_seq,
-db=db, evalue=0.0001, genes=genes,pfam_dict=pfam_d, name_family=name_family)
-
-
-
-
-ms_tables, numbers = run_ms(hmm_out, genomes, genes, name_family)
+ms_tables, numbers_95 = run_ms(hmm_out, genomes, genes, args["name_family"])
 
 hmmer_final = DataFrame()
+number_final = DataFrame()
+clean_numbers_final = DataFrame()
 for ix = 1:length(ms_tables)
-  number = numbers[ix]
+  number = numbers_95[ix]
   ms_table = ms_tables[ix]
-  clean_number, for_removal = sample_table(number, genes, genomes,
-                                                 name_family, args)
+  dirty_number, for_removal, clean_numbers = sample_table(number, genes, genomes,
+                                                 args["name_family"], args)
   ms_table[:order] = [string(x) for x in ms_table[:order]]
   for (sp,clu) = zip(for_removal[:species],for_removal[:cluster])
   ms_table[(ms_table[:species] .== sp)&
@@ -457,7 +484,23 @@ for ix = 1:length(ms_tables)
   else
     append!(hmmer_final, ms_table)
   end
+  if nrow(number_final) == 0
+    number_final = dirty_number
+  else
+    append!(number_final, dirty_number)
+  end
+  if nrow(clean_numbers_final) == 0
+    clean_numbers_final = clean_numbers
+  else
+    append!(clean_numbers_final, clean_numbers)
+  end
 end
+# Print numbers files
+tab_file_name = format("{1}/report/{1}_numbers.csv", args["name_family"])
+writetable(tab_file_name, number_final)
+clean_num_file = replace(tab_file_name, "numbers", "numbers_clean")
+writetable(clean_num_file, clean_numbers_final)
+
  hmmer_final[hmmer_final[:cluster] .== "na_95", :order] = "na_95"
  hmmer_final[hmmer_final[:cluster] .== "na_ms", :order] = "na_ms"
  gene_file = format("{1}/report/{1}_genes.csv",args["name_family"])
