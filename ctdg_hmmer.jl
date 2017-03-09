@@ -275,9 +275,11 @@ function run_ms(hmm_out, genomes, genes, name_family)
   ms_list, numbers_big = [], []
   for (pf_id, hmm_df) = hmm_out
     ms_table = MeanShift(hmm_out[pf_id], genomes, genes, pf_id, name_family)
-    ms_numbers = cluster_numbers(ms_table, genes)
-    push!(numbers_big, ms_numbers)
-    push!(ms_list, ms_table)
+    if nrow(ms_table) > 1
+      ms_numbers = cluster_numbers(ms_table, genes)
+      push!(numbers_big, ms_numbers)
+      push!(ms_list, ms_table)
+    end
   end
   return (ms_list, numbers_big)
 end
