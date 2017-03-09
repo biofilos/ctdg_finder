@@ -160,8 +160,7 @@ function hmmscan(hmmer_path; cpus=1, ref="None",
     # Save Pfam accessions on a file
     pfams = save_pfams(name_family, out_file)
   elseif pfam == "ALL"
-    acc_file = db * "/../pfam/pfam.accs"
-    pfams = [chomp(x) for x in readlines(acc_file)]
+    pfams = keys(pfam_dict)
   else
     pfams = [pfam]
   end
