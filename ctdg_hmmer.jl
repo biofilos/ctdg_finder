@@ -178,6 +178,7 @@ Run the meanshift algorithm (prom Python scikit-learn) and annotate
 relevant cluster candidates
 """
 function MeanShift(hmmer_table, genomes, all_genes, pfam, name_family)
+  println(pfam)
   hmmer_table[:, :family] = name_family
   hmmer_table[:, :pfam] = pfam
   hmmer_table[:, :cluster] = "0"
