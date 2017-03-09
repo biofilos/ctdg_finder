@@ -189,6 +189,7 @@ function MeanShift(hmmer_table, genomes, all_genes, pfam, name_family)
     chrom_mean_shift = ms_sp_table[1, :chromosome]
 
     if nrow(ms_sp_table) > 1
+      println(format("{}: {}", sp_mean_shift, chrom_mean_shift))
       bandwidth = genomes[(genomes[:species].==sp_mean_shift)&
                    (genomes[:chromosome].==chrom_mean_shift), :bandwidth][1]
       gene_starts = ms_sp_table[:, :start]
