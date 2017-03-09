@@ -9,8 +9,7 @@ using DataFrames
 using Bio.Seq
 using PyCall
 using Formatting
-# include("ctdg_parallel.jl")
-# using CP
+
 @pyimport sklearn.cluster as cl
 
 """
@@ -25,8 +24,9 @@ function parse_commandline()
     "--ref_seq", "-f"
       help = "Reference sequence (query)"
       required = false
+      default = "None"
     "--hmm_ref", "-p"
-      help="query HMM"
+      help="query HMM. ALL will run the analysis for all hmms in db"
       required= false
       arg_type = String
       default = "None"
@@ -159,6 +159,9 @@ function hmmscan(hmmer_path; cpus=1, ref="None",
     -E $evalue --cpu $cpus $db_hmm $ref`)
     # Save Pfam accessions on a file
     pfams = save_pfams(name_family, out_file)
+  elseif pfam == "ALL":
+    acc_file = db * "/../pfam/pfam.accs"
+    pfams = [chomp(x) for x in readlines(acc_file)]
   else
     pfams = [pfam]
   end
@@ -446,7 +449,6 @@ function move_finished(args)
 end
 
 
-# name_family = "prl"
 
 
 hmm_path = "/usr/local/bin"
@@ -457,7 +459,7 @@ create_folders(args["name_family"])
 genes, genomes, pfam_d = check_db(args["db"])
 
 hmm_out = hmmscan(hmm_path,
-cpus=args["cpu"], ref=args["ref_seq"],
+cpus=args["cpu"], ref=args["ref_seq"], pfam=args["hmm_ref"],
 db=args["db"], evalue=0.0001, genes=genes,
 pfam_dict=pfam_d, name_family=args["name_family"])
 
