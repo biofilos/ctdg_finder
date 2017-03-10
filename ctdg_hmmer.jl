@@ -505,9 +505,13 @@ tab_file_name = format("{1}/report/{1}_numbers.csv", args["name_family"])
 writetable(tab_file_name, number_final)
 clean_num_file = replace(tab_file_name, "numbers", "numbers_clean")
 writetable(clean_num_file, clean_numbers_final)
-
- hmmer_final[hmmer_final[:cluster] .== "na_95", :order] = "na_95"
- hmmer_final[hmmer_final[:cluster] .== "na_ms", :order] = "na_ms"
+try
+  hmmer_final[hmmer_final[:cluster] .== "na_95", :order] = "na_95"
+  hmmer_final[hmmer_final[:cluster] .== "na_ms", :order] = "na_ms"
+catch
+  hmmer_final[:, :order] = "0"
+  hmmer_final[:, :cluster] = "0"
+end
  gene_file = format("{1}/report/{1}_genes.csv",args["name_family"])
  writetable(gene_file, hmmer_final)
  # Filter out non-clustered genes
