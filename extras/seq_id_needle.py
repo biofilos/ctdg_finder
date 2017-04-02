@@ -20,6 +20,9 @@ gene_selected_out = sys.argv[4]
 # Percentage similarity threshold
 perc_id = float(sys.argv[5])
 
+# CPUS
+cpus = int(sys.argv[6])
+
 def clean_seqname(seq_path):
     return seq_path.replace(".fa", "").replace("seqs/", "")
 
@@ -66,7 +69,7 @@ for seq1 in glob("seqs/*.fa"):
         if seq1 != seq2:
             seq_pairs.append([seq1, seq2])
 
-with futures.ProcessPoolExecutor() as pool:
+with futures.ProcessPoolExecutor(cpus) as pool:
     id_calculated = pool.map(get_id, seq_pairs)
 # Load similarity data as a dataframe
 id_data = []
