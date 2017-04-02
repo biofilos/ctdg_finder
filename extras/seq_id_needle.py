@@ -55,9 +55,9 @@ if os.path.exists("seqs"):
     shutil.rmtree("seqs")
 os.makedirs("seqs")
 for seq in SeqIO.parse(in_file, "fasta"):
-    if not seq.name.split("|")[-1] in ["0", "na_95", "na_ms"]:
-        seq_name = "seqs/" + seq.name.split("|")[2] + ".fa"
-        SeqIO.write(seq, seq_name, "fasta")
+    #if not seq.name.split("|")[-1] in ["0", "na_95", "na_ms"]:
+    seq_name = "seqs/" + seq.name.split("|")[2] + ".fa"
+    SeqIO.write(seq, seq_name, "fasta")
 
 # Get all pairs of sequences
 seq_pairs = []
@@ -69,7 +69,10 @@ for seq1 in glob("seqs/*.fa"):
 with futures.ProcessPoolExecutor() as pool:
     id_calculated = pool.map(get_id, seq_pairs)
 # Load similarity data as a dataframe
-id_data = list(id_calculated)
+id_data = []
+for datum in id_calculated:
+    if datum[3] > perc_id:
+        id_data.append(datum)
 id_hits = pd.DataFrame(id_data, columns=["seq1", "seq2", "identity", "similarity"])
 
 # Read gene annotation
