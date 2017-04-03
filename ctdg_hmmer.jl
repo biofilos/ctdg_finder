@@ -5,7 +5,6 @@ using ZipFile
 using ArgParse
 using Base.Test
 using JSON
-using DataFrames
 using Bio.Seq
 using PyCall
 using Formatting
@@ -189,7 +188,7 @@ function MeanShift(hmmer_table, genomes, all_genes, pfam, name_family)
     chrom_mean_shift = ms_sp_table[1, :chromosome]
 
     if nrow(ms_sp_table) > 1
-      println(format("{}: {}", sp_mean_shift, chrom_mean_shift))
+      #println(format("{}: {}", sp_mean_shift, chrom_mean_shift))
       bandwidth = genomes[(genomes[:species].==sp_mean_shift)&
                    (genomes[:chromosome].==chrom_mean_shift), :bandwidth][1]
       gene_starts = ms_sp_table[:, :start]
@@ -198,7 +197,6 @@ function MeanShift(hmmer_table, genomes, all_genes, pfam, name_family)
 
       ms = cl.MeanShift(bandwidth=bandwidth)
       group_labels = ms[:fit_predict](gene_coords)
-
       ms_sp_table[:, :cluster] = map((x,y) -> "$(pfam)_" * string(x) * "_" * string(y),
       ms_sp_table[:chromosome], group_labels)
       for group in groupby(ms_sp_table, :cluster)
