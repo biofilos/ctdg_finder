@@ -165,9 +165,11 @@ function hmmscan(hmmer_path; cpus=1, ref="None",
   end
   genes_dict = Dict()
   for pfam = pfams
-    gene_list = pfam_dict[pfam]
-    genes_slice = genes[findin(genes[:acc], gene_list), :]
-    genes_dict[pfam] = genes_slice
+    if haskey(pfam_dict, pfam)
+      gene_list = pfam_dict[pfam]
+      genes_slice = genes[findin(genes[:acc], gene_list), :]
+      genes_dict[pfam] = genes_slice
+    end
   end
   return genes_dict
 end
