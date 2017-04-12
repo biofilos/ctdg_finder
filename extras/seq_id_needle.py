@@ -110,3 +110,58 @@ for hit in id_dict:
 undirected_df = pd.DataFrame(undirected_list, columns=["seq1", "seq2", "identity", "similarity"])
 undirected_df.set_index("seq1", inplace=True)
 undirected_df.to_csv(out_file + "_{}undirected".format(perc_id))
+
+###
+# Export a fasta file for each component
+###
+annotation = genes
+annotation.set_index("acc", inplace=True)
+net_df = undirected_df
+net_df.set_index(["seq1", "seq2"], inplace=True)
+
+# Initialize graph
+G = nx.Graph()
+# Load edges in graph
+G.add_edges_from(net_df.index)
+# Annotate edges
+for edge in G.edges_iter():
+    for edge_info in net_df.columns:
+        # In case the nodes of an edge are in different order, flip them
+        try:
+            G.edge[edge[0]][edge[1]][edge_info] = net_df.loc[edge, edge_info]
+        except KeyError:
+            G.edge[edge[0]][edge[1]][edge_info] = net_df.loc[(edge[1], edge[0]), edge_info]
+
+cc_ix = 1
+ccs = {}
+un_cl_set, cl_set = set(), set()
+cc_df = pd.DataFrame(columns=["name", "nodes", "clustered", "unclustered"])
+cc_df.set_index("name", inplace=True)
+
+rule = {str:lambda cluster: "na" in cluster or cluster == "0",
+       pd.Series: lambda cluster:("na" in cluster or cluster == "0").all()}
+for cc in nx.connected_component_subgraphs(G):
+    cc_name = "cc_" + str(cc_ix)
+    cc_ix += 1
+    nodes = len(cc)
+    cl, un_cl = 0, 0
+    for cc_node in cc.nodes():
+        cluster = cc.node[cc_node]["cluster"]
+        if rule[type(cluster)](cluster):
+            un_cl += 1
+            un_cl_set.add(cc_node)
+        else:
+            cl += 1
+            cl_set.add(cc_node)
+    cc_df.loc[cc_name] = [nodes, cl, un_cl]
+    ccs[cc_name] = cc
+
+cc_df.loc[:, "prop_cl"] = cc_df["clustered"] / cc_df["nodes"]
+seq_dict = SeqIO.to_dict(SeqIO.parse(in_file, "fasta"), key_function=lambda x: x.name.split("|")[2])
+# Save sequences from each component in a different file
+basename = in_file.split(".")[0]
+for cc in ccs:
+    fileO = open("{}_{}.fa".format(basename, cc), "w")
+    for node in ccs[cc].nodes():
+        SeqIO.write(seq_dict[node], fileO, "fasta")
+    fileO.close()
