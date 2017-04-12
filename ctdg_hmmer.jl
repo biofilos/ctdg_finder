@@ -51,6 +51,24 @@ function parse_commandline()
   return parse_args(s)
 end
 
+"""
+Check that the selected species (if any) exist in the database
+"""
+function check_sp(args, genes, genomes)
+  selected = [x[1] for x in args["sp"]]
+  if ! isempty(selected)
+    valid_species = unique(genomes[:species])
+    for spp=selected
+      @assert spp in valid_species "$spp is not a valid species"
+    end
+    println("Running the analysis with the species:")
+    println(join(selected, "\n"))
+    genes = genes[findin(genes[:species], selected),:]
+    genomes = genomes[findin(genomes[:species], selected), :]
+  end
+  return (genes, genomes)
+end
+
 function check_db(dir)
   int2str = x -> string(x)
   @assert ispath(dir) "Directory with CTDG database does not exist"
@@ -58,8 +76,12 @@ function check_db(dir)
   for i in ["pfam","chromosomes.csv","genes_parsed.csv", "hmmer"]
     @assert i in db_files "$i does not exist in $dir"
   end
-  genomes = readtable(dir * "/chromosomes.csv")
-  genes = readtable(dir * "/genes_parsed.csv")
+  genes, genomes = check_sp(args,
+                            readtable(dir * "/genes_parsed.csv"),
+                            readtable(dir * "/chromosomes.csv"))
+  # genomes = readtable(dir * "/chromosomes.csv")
+  # genes = readtable(dir * "/genes_parsed.csv")
+
   pfam_dict = JSON.parsefile(dir * "/hmmer/pfam.json")
   # Only use columns of interest
   genomes = genomes[:, [:species, :chromosome, :length, :bandwidth]]
@@ -97,19 +119,7 @@ function remove_if_incomplete(name_family)
   end
 end
 
-"""
-Check that the selected species (if any) exist in the database
-"""
-function check_sp(args)
-  if ! isempty(args["sp"])
-    valid_species = unique(genomes[:species])
-    for spp=args["sp"]
-      @assert spp in valid_species "$spp is not a valid species"
-    end
-    println("Running the analysis with the species:")
-    println(join(args["sp"], "\n"))
-  end
-end
+
 
 """
 Create analysis directory structure
