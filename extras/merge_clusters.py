@@ -13,12 +13,14 @@ Argument 4: gene table output
 Argument 5: numbers table output
 """
 
-annotation = pd.read_csv(sys.argv[1], index_col=0)
-genes = pd.read_csv(sys.argv[2], index_col=0)
+annotation = pd.read_csv(sys.argv[1])
+annotation.set_index("acc", inplace=True)
+genes = pd.read_csv(sys.argv[2])
+genes.set_index("acc", inplace=True)
 numbers = pd.read_csv(sys.argv[3])
 
 # get list of clustered genes
-cl_accs = list(genes.loc[~(genes["order"].isin(["na_95", "na_ms", "0", 0, "0.0", 0.0]))].index)
+cl_accs = list(genes.loc[~(genes["order"].isin(["na_95", "na_ms", "0", 0, "0.0", 0.0]))].index.unique())
 
 
 def merge_ranges(intervals):
@@ -58,8 +60,8 @@ def update_cluster(sp_chrom):
         interval_df = annotation.loc[(annotation["species"] == sp) & (annotation["chromosome"] == chrom) &
                                      (annotation["start"] >= interval[0]) & (annotation["end"] <= interval[1])]
         interval_df.sort_values("start", inplace=True)
-        interval_df["cluster"] = "0"
-        interval_df["order"] = "0"
+        interval_df.loc[:, "cluster"] = "0"
+        interval_df.loc[:, "order"] = "0"
         intervals_accs_clustered = set(interval_df.index).intersection(set(cl_accs))
         interval_clustered = interval_df.loc[intervals_accs_clustered]
         interval_not_clustered = interval_df.loc[~(interval_df.index.isin(intervals_accs_clustered))]
@@ -67,9 +69,9 @@ def update_cluster(sp_chrom):
         if cluster_size > 1:
             cluster_counter += 1
             cluster_name = "{}_{}".format(chrom, cluster_counter)
-            interval_clustered["cluster"] = cluster_name
+            interval_clustered.loc[:, "cluster"] = cluster_name
             interval_clustered.sort_values("start", inplace=True)
-            interval_clustered["order"] = range(1, cluster_size + 1)
+            interval_clustered.loc[:, "order"] = range(1, cluster_size + 1)
             # Update numbers table
             updated_numbers.append([sp, chrom, cluster_name, interval[0], interval[1],
                                     cluster_size, interval_df.shape[0]])
@@ -84,7 +86,7 @@ def update_cluster(sp_chrom):
     numbers_df = pd.DataFrame(updated_numbers, columns=["species", "chromosome", "cluster", "start", "_end",
                                                         "duplicates", "total_genes"])
     numbers_df.loc[:, "proportion_duplicates"] = numbers_df["duplicates"] / numbers_df["total_genes"]
-    return (updated_chrom, numbers_df)
+    return updated_chrom, numbers_df
 
 
 with futures.ProcessPoolExecutor() as pool:
