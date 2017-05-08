@@ -6,10 +6,11 @@ using ArgParse
 using Base.Test
 using JSON
 using Bio.Seq
-using PyCall
+#using PyCall
 using Formatting
-
-@pyimport sklearn.cluster as cl
+using ScikitLearn
+@sk_import cluster: MeanShift
+#@pyimport sklearn.cluster as cl
 
 """
 Parse script options
@@ -188,7 +189,7 @@ end
 Run the meanshift algorithm (prom Python scikit-learn) and annotate
 relevant cluster candidates
 """
-function MeanShift(hmmer_table, genomes, all_genes, pfam, name_family)
+function Meanshift(hmmer_table, genomes, all_genes, pfam, name_family)
   println(pfam)
   hmmer_table[:, :family] = name_family
   hmmer_table[:, :pfam] = pfam
@@ -207,8 +208,11 @@ function MeanShift(hmmer_table, genomes, all_genes, pfam, name_family)
       gene_coords = [(x, y) for (x, y) in zip(gene_starts,
                                               zeros(Int, length(gene_starts)))]
 
-      ms = cl.MeanShift(bandwidth=bandwidth)
-      group_labels = ms[:fit_predict](gene_coords)
+      #ms = cl.MeanShift(bandwidth=bandwidth)
+      ms = MeanShift(bandwidth=bandwidth)
+      ScikitLearn.fit!(ms, gene_coords)
+      group_labels = ScikitLearn.predict(ms, gene_coords)
+      #group_labels = ms[:fit_predict](gene_coords)
       ms_sp_table[:, :cluster] = map((x,y) -> "$(pfam)_" * string(x) * "_" * string(y),
       ms_sp_table[:chromosome], group_labels)
       for group in groupby(ms_sp_table, :cluster)
@@ -286,7 +290,7 @@ with cluster candidates
 function run_ms(hmm_out, genomes, genes, name_family)
   ms_list, numbers_big = [], []
   for (pf_id, hmm_df) = hmm_out
-    ms_table = MeanShift(hmm_out[pf_id], genomes, genes, pf_id, name_family)
+    ms_table = Meanshift(hmm_out[pf_id], genomes, genes, pf_id, name_family)
     if nrow(ms_table) > 1
       ms_numbers = cluster_numbers(ms_table, genes)
       push!(numbers_big, ms_numbers)
@@ -362,12 +366,12 @@ function sample_sp(numbers_row, all_genes, chrom_table, args)
     if length(chroms[:chromosome]) == 0
       println(format("sp table: {}|region length: {}|species: {}", nrow(sp_table), region_len, sp))
     end
-    sample_chrom = sample(chroms[:chromosome])
+    sample_chrom = DataFrames.sample(chroms[:chromosome])
 
     # Calculate the up limit for sampling chromosome regions
     sample_space = chroms[chroms[:chromosome] .== sample_chrom, :length] - region_len
     # Calculate sample
-    sample_up = sample(range(1, sample_space[1]))
+    sample_up = DataFrames.sample(range(1, sample_space[1]))
     sample_start, sample_end = (sample_up, sample_up + region_len)
     # Get accessions for the genes in the sample region
     sample_accs = sp_table[(sp_table[:chromosome] .== sample_chrom)&
