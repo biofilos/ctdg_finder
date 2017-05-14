@@ -142,12 +142,14 @@ function save_pfams(name_family, hmmer_out)
     if line[1] != '#'
       data_line = [x for x in split(line, ' ') if length(x) > 0]
       pfam = data_line[2]
-      push!(pfams, pfam)
-      write(fileO, pfam*"\n")
+      if ! in(pfam, pfams)
+        push!(pfams, pfam)
+        write(fileO, pfam*"\n")
+      end
     elseif contains(line, "[ok]")
       close(fileO)
       return pfams
-  end
+    end
   end
 end
 
