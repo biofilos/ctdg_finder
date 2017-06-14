@@ -13,7 +13,7 @@ using ScikitLearn
 #@pyimport sklearn.cluster as cl
 
 """
-Parse script options
+Parse script options.
 """
 function parse_commandline()
   s = ArgParseSettings()
