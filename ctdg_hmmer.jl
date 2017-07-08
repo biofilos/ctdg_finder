@@ -204,8 +204,8 @@ function Meanshift(hmmer_table, genomes, all_genes, pfam, name_family)
 
     if nrow(ms_sp_table) > 1
       #println(format("{}: {}", sp_mean_shift, chrom_mean_shift))
-      bandwidth = genomes[(genomes[:species].==sp_mean_shift)&
-                   (genomes[:chromosome].==chrom_mean_shift), :bandwidth][1]
+      bandwidth = genomes[.&((genomes[:species].==sp_mean_shift),
+                             (genomes[:chromosome].==chrom_mean_shift)), :bandwidth][1]
       gene_starts = ms_sp_table[:, :start]
       gene_coords = [(x, y) for (x, y) in zip(gene_starts,
                                               zeros(Int, length(gene_starts)))]
@@ -237,14 +237,14 @@ function cluster_numbers(hmmer_table, all_genes)
   groups = groupby(hmmer_table, [:species, :chromosome, :cluster])
   n_groups = length(groups)
   # Initialize arrays
-  sp_arr = Array(String, n_groups)
-  chrom_arr = Array(String, n_groups)
-  clust_arr = Array(String, n_groups)
-  start_arr = Array(Int, n_groups)
-  end_arr = Array(Int, n_groups)
-  dups_arr = Array(Int,n_groups)
-  total_arr = Array(Int, n_groups)
-  prop_arr = Array(Float64, n_groups)
+  sp_arr = Array{String}(n_groups)
+  chrom_arr = Array{String}(n_groups)
+  clust_arr = Array{String}(n_groups)
+  start_arr = Array{Int}(n_groups)
+  end_arr = Array{Int}(n_groups)
+  dups_arr = Array{Int}(n_groups)
+  total_arr = Array{Int}(n_groups)
+  prop_arr = Array{Float64}(n_groups)
   # annotate each
   for (ix,group)=enumerate(groups)
     n_clustered = nrow(group)
@@ -253,10 +253,13 @@ function cluster_numbers(hmmer_table, all_genes)
     cluster = group[1, :cluster]
     start = minimum(group[:start])
     finish = maximum(group[:_end])
-    all_cluster_tab = all_genes[(all_genes[:species] .== sp)&
-    (all_genes[:chromosome] .== chrom)&
-    (all_genes[:start] .>= start)&
-    (all_genes[:_end] .<= finish), :]
+    filtered = .&((all_genes[:species] .== sp),
+                  (all_genes[:chromosome] .== chrom),
+                  (all_genes[:start] .>= start),
+                  (all_genes[:_end] .<= finish))
+    
+    #println(filtered)
+    all_cluster_tab = all_genes[filtered, :]
     # not_clustered = length(setdiff(Set(all_cluster_tab[:acc]),
     #                                Set(group[:prot_acc])))
     total_genes = nrow(all_cluster_tab)
@@ -476,7 +479,8 @@ args = parse_commandline()
 remove_if_incomplete(args["name_family"])
 create_folders(args["name_family"])
 genes, genomes, pfam_d = check_db(args["db"])
-
+# Standardize chromosome column names
+genes[:, :chromosome] = String.(collect(genes[:chromosome]))
 hmm_out = hmmscan(hmm_path,
 cpus=args["cpu"], ref=args["ref_seq"], pfam=args["hmm_ref"],
 db=args["db"], evalue=0.0001, genes=genes,

@@ -17,6 +17,8 @@ function intergenic(chrom_table)
     bandwidth = abs(chrom_table[2, :start] - chrom_table[1, :_end])
   else
     pre_distances = chrom_table[2:end, :start] - chrom_table[1:end-1, :_end]
+    # Set intergenic distance of overlapping genes to 0
+    pre_distances[pre_distances .< 0] = 0
     gene_distances = pre_distances[pre_distances .> 0]
     if length(gene_distances) == 0
       bandwidth = sort(chrom_table[:_end])[end]
