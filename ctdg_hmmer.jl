@@ -5,7 +5,7 @@ using ZipFile
 using ArgParse
 using Base.Test
 using JSON
-using Bio.Seq
+#using Bio.Seq
 #using PyCall
 using Formatting
 using ScikitLearn
@@ -159,8 +159,8 @@ Execute HMMscan search
 function hmmscan(hmmer_path; cpus=1, ref="None",
                 db="", evalue=1, pfam="None", genes=DataFrame(),
                 pfam_dict=Dict(), name_family="")
-  db_hmm = db * "/../pfam/pfam.hmm"
-  all_seqs = db * "/seqs_hmmer.fa"
+  db_hmm = db * "/pfam/pfam.hmm"
+  #all_seqs = db * "/seqs_hmmer.fa"
   if ref != "None"
     hmmer_scan = hmmer_path* "/hmmscan"
     out_file = format("{1}/intermediates/{1}.pre_hmmer", name_family)
@@ -358,10 +358,10 @@ function sample_sp(numbers_row, all_genes, chrom_table, args)
   sp = numbers_row[:species]
   region_len = numbers_row[:_end] - numbers_row[:start]
   sp_table = all_genes[all_genes[:species] .== sp, :]
-  chroms = chrom_table[(chrom_table[:species] .== sp)&
+  chroms = chrom_table[.&((chrom_table[:species] .== sp),
 		       # Only include chromosomes that are
 		       # longer to the region being sampled
-		       (chrom_table[:length] .> region_len),
+                       (chrom_table[:length] .> region_len)),
 		       [:chromosome, :length]]
   cluster = numbers_row[:cluster]
   max_values = @sync @parallel vcat for i=1:args["hmmer_samples"]
@@ -379,9 +379,9 @@ function sample_sp(numbers_row, all_genes, chrom_table, args)
     sample_up = DataFrames.sample(range(1, sample_space[1]))
     sample_start, sample_end = (sample_up, sample_up + region_len)
     # Get accessions for the genes in the sample region
-    sample_accs = sp_table[(sp_table[:chromosome] .== sample_chrom)&
-			   (sp_table[:start] .< sample_end)&
-			   (sp_table[:_end] .> sample_start),:acc]
+    sample_accs = sp_table[.&((sp_table[:chromosome] .== sample_chrom),
+			   (sp_table[:start] .< sample_end),
+                           (sp_table[:_end] .> sample_start)),:acc]
     json_file = readstring(open("$(args["db"])/hmmers/$(sp)_$(sample_chrom).json"))
     blast_dic = JSON.parse(json_file)
     max_dups = grab_duplicates(sample_accs, blast_dic)
@@ -498,8 +498,8 @@ for ix = 1:length(ms_tables)
                                                  args["name_family"], args)
   ms_table[:order] = [string(x) for x in ms_table[:order]]
   for (sp,clu) = zip(for_removal[:species],for_removal[:cluster])
-  ms_table[(ms_table[:species] .== sp)&
-           (ms_table[:cluster] .== clu), :cluster] = "na_95"
+  ms_table[.&((ms_table[:species] .== sp),
+              (ms_table[:cluster] .== clu)), :cluster] = "na_95"
   end
   # Reannotate the order for excluded clusters
   # This was done here because I did'nt want to change the type of
