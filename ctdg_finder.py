@@ -286,7 +286,7 @@ def sample_record(record, ctdg_obj):
                              chromosomes=genomes, genes=genes, db=db)
     with futures.ProcessPoolExecutor(ctdg_obj.cpu) as pool:
         max_dups = pool.map(fill_sample_fx, sample_chroms)
-    percentile_95 = np.percentile(list(max_dups), 95)
+    percentile_95 = np.round(np.percentile(list(max_dups), 95), 4)
     return sp, cluster, percentile_95
 
 
@@ -298,8 +298,10 @@ def sample_table(numbers, ctdg_obj):
     :return: annotated table
     """
     longest_sp = max([len(x) for x in numbers.species.unique()]) + 2
-    print_msg = "{:<{longest_sp}} {:<30} {:<10} {}{}"
-    print(print_msg.format("Species", "Cluster", "Duplicates", "P95", "", longest_sp=longest_sp))
+    longest_cluster = max([len(x) for x in numbers.cluster.unique()]) + 2
+    print_msg = "{:<{sp}} {:<{cluster}} {:<10} {}{}"
+    print(print_msg.format("Species", "Cluster", "Duplicates", "P95", "",
+                           sp=longest_sp, cluster=longest_cluster))
     for record in numbers.to_records():
         sp, cluster, p95 = sample_record(record, ctdg_obj)
         cluster_duplicates = record[4]
@@ -307,7 +309,8 @@ def sample_table(numbers, ctdg_obj):
             msg = "*"
         else:
             msg = ""
-        print(print_msg.format(sp, cluster, cluster_duplicates, p95, msg, longest_sp=longest_sp))
+        print(print_msg.format(sp, cluster, cluster_duplicates, p95, msg,
+                               sp=longest_sp, cluster=longest_cluster))
         numbers.loc[(numbers["species"] == sp) & (numbers["cluster"] == cluster), "p_95"] = p95
 
 
