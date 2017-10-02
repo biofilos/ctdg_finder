@@ -10,6 +10,7 @@ from glob import glob
 import numpy as np
 import pandas as pd
 from sklearn.cluster import MeanShift
+from unittest.mock import inplace
 
 pd.options.mode.chained_assignment = None
 
@@ -58,7 +59,7 @@ class CtdgConfig:
         banned_dirs = [os.getcwd(), self.db, '.']
         assert self.out_dir not in banned_dirs, "output direcrory can't be the ctdgfinder directory" + \
                                                 " or the directory where the ctdg database is stored"
-
+        
     def init_tables(self):
         """
         Initialize genome and gene annotation tables
@@ -79,6 +80,7 @@ class CtdgConfig:
             genomes = genomes.loc[genomes["species"].isin(self.sp)]
         self.genomes = genomes
         self.all_genes = all_genes
+
 
 class CtdgRun:
     def __init__(self, ctdg, args):
@@ -114,10 +116,15 @@ class CtdgRun:
         Remove unfinished analysis
         :return: None
         """
+        # Do not run analysis if final output is present
+        assert not os.path.exists("{}/{}".format(self.out, self.name)),"Results for {} exist.".format(self.name)
+
         if os.path.exists(self.name):
             print("Partial results for {} were found, removing them".format(self.name))
             shutil.rmtree(self.name)
+        
 
+    
     def hmmscan(self, evalue = 1e-3):
         out_file = "{0}/intermediates/{0}.pre_hmmer".format(self.name)
         dom_out = out_file + "_dom"
@@ -154,8 +161,13 @@ class CtdgRun:
         selected_list = []
         sp_chroms = selected.groupby(["species", "chromosome"]).groups
         for sp, chrom in sp_chroms:
-            bandwidth = self.genomes.loc[(self.genomes["species"] == sp) &
-                                         (self.genomes["chromosome"] == chrom), "bandwidth"].values[0]
+            try:
+                bandwidth = self.genomes.loc[(self.genomes["species"] == sp) &
+                                         (self.genomes["chromosome"] == chrom),
+                                         "bandwidth"].values[0]
+            except IndexError:
+                print(sp, chrom)
+                return []
             selected.loc[sp_chroms[(sp, chrom)], "bandwidth"] = bandwidth
             selected.loc[sp_chroms[(sp, chrom)], "cluster"] = "{}_{}".format(self.name, chrom)
             selected_list.append(selected.loc[sp_chroms[(sp, chrom)]])
@@ -186,6 +198,8 @@ def meanshift(sp_table):
     # Order genes by start coordinate
     sp_table.sort_values("start", inplace=True)
     bandwidth = sp_table["bandwidth"].values[0]
+    if bandwidth == 0:
+        bandwidth = 1
     # If there is only one gene, it is single copy in the chromosome
     if type(sp_table) == pd.Series or sp_table.shape[0] == 1:
         sp_table.loc[:, "cluster"] = 0
@@ -197,7 +211,7 @@ def meanshift(sp_table):
         try:
             mean_shift.fit(gene_starts)
         except ValueError:
-            print(bandwidth, sp_table)
+            print("BW: {}".format(bandwidth))
         labels = mean_shift.labels_
         # Label clusters
         sp_table.loc[:, "cluster"] = sp_table["cluster"] + ["_{}".format(x) for x in labels]
@@ -274,7 +288,7 @@ def sample_record(record, ctdg_obj):
     samples = ctdg_obj.samples
     db = ctdg_obj.db
     sp = record[1]
-    chrom = record[2]
+    # chrom = record[2]
     cluster = record[3]
     length = record[7]
     genomes = genomes.loc[(genomes["species"] == sp) &
@@ -290,13 +304,15 @@ def sample_record(record, ctdg_obj):
     return sp, cluster, percentile_95
 
 
-def sample_table(numbers, ctdg_obj):
+def sample_table(ctdg_obj):
     """
     Annotate the cluster candidate summary table with the percentile 95 column
     :param numbers: cluster candidate table
     :param ctdg_obj: CTDG object
     :return: annotated table
     """
+    numbers = ctdg_obj.numbers
+    print("Analyzing {} cluster candidates".format(numbers.shape[0]))
     longest_sp = max([len(x) for x in numbers.species.unique()]) + 2
     longest_cluster = max([len(x) for x in numbers.cluster.unique()]) + 2
     print_msg = "{:<{sp}} {:<{cluster}} {:<10} {}{}"
@@ -312,7 +328,61 @@ def sample_table(numbers, ctdg_obj):
         print(print_msg.format(sp, cluster, cluster_duplicates, p95, msg,
                                sp=longest_sp, cluster=longest_cluster))
         numbers.loc[(numbers["species"] == sp) & (numbers["cluster"] == cluster), "p_95"] = p95
+    return numbers
 
+
+def clean_p95(numbers):
+    """
+    Annotate genes in cluster candidates with less duplicates than
+    the percentile 95 sampling, and save data
+    :return:
+    """
+    for_removal_df = numbers.loc[numbers["p_95"] > numbers["gene_duplicates"]]
+    # Clusters that did not pass the percentile 95 threshold
+    for_removal_ix = for_removal_df.set_index(["species", "chromosome", "cluster"]).index
+    genes = analysis.selected.reset_index().set_index(["species", "chromosome", "cluster"])
+    # Annotate genes in clusters under the percentile 95 threshold
+    genes.loc[for_removal_ix, "order"] = "na_p95"
+    genes.reset_index(inplace=True)
+    genes.set_index("acc", inplace=True)
+    # Order columns
+    genes.columns = ["species", "chromosome", "symbol", "start", "end", "strand",
+                     "length", "cluster", "order"]
+    # Save genes data
+    genes_out_name = "{0}/report/{0}_genes.csv".format(analysis.name)
+    genes.to_csv(genes_out_name)
+    # Save only data of genes in clusters
+    genes_clean = genes.loc[~(genes["order"].isin(["na_p95", "na_ms", 0, "0"]))]
+    genes_clean.to_csv(genes_out_name.replace("genes", "genes_clean"))
+
+    # Save clusters summary information
+    
+    numbers.set_index(["species", "chromosome", "cluster"], inplace=True)
+    # Order columns
+    numbers.columns = ["gene_duplicates", "start", "end", "length", "p_95"]
+    numbers_out = genes_out_name.replace("genes", "numbers")
+    numbers.to_csv(numbers_out)
+    
+    # Save only clusters that passed the percentile 95 sampling
+    numbers_clean = numbers.loc[~(numbers.index.isin(for_removal_ix))]
+    numbers_clean.to_csv(numbers_out.replace("numbers", "numbers_clean"))
+
+
+def save_results(ctdg_object):
+    # Compress intermediates
+    out = ctdg_object.out
+    fam_name = ctdg_object.name
+    tar_name = "{}/intermediates/intermediates.tgz".format(fam_name)
+    print(tar_name)
+    tar_file = tarfile.open(tar_name, "x:gz")
+    for intermediate in glob("{0}/intermediates/{0}*".format(fam_name)):
+        tar_file.add(intermediate)
+        os.remove(intermediate)
+    tar_file.close()
+    # Move analysis to output directory
+    os.makedirs(out, exist_ok=True)
+    out_final = "{}/{}".format(out, fam_name)
+    shutil.move(fam_name, out_final)
 
 if __name__ == "__main__":
     # Define arguments
@@ -374,8 +444,16 @@ if __name__ == "__main__":
     # Create directory structure
     analysis.create_folders()
     # Run HMMscan and Meanshift step
-    analysis.selected = parallel_meanshift(analysis.hmmscan(), args.cpu)
-    # Organize summary table for each cluster candidate
-    pre_numbers = analysis.numbers
-    # Run sampling
-    sample_table(pre_numbers, analysis)
+    hmmers = analysis.hmmscan()
+    if hmmers:
+        analysis.selected = parallel_meanshift(hmmers, args.cpu)
+        # Organize summary table for each cluster candidate
+        # pre_numbers = analysis.numbers.loc[:, ]
+        # Run sampling
+        numbers = sample_table(analysis)
+        # Clean tables and save CSVs
+        clean_p95(numbers)
+    else:
+        print("No clusters were found")
+    save_results(analysis)
+    print("DONE")
