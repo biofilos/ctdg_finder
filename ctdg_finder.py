@@ -354,7 +354,6 @@ def clean_p95(numbers):
     # Save only data of genes in clusters
     genes_clean = genes.loc[~(genes["order"].isin(["na_p95", "na_ms", 0, "0"]))]
     genes_clean.to_csv(genes_out_name.replace("genes", "genes_clean"))
-
     # Save clusters summary information
     
     numbers.set_index(["species", "chromosome", "cluster"], inplace=True)
@@ -366,7 +365,6 @@ def clean_p95(numbers):
     # Save only clusters that passed the percentile 95 sampling
     numbers_clean = numbers.loc[~(numbers.index.isin(for_removal_ix))]
     numbers_clean.to_csv(numbers_out.replace("numbers", "numbers_clean"))
-
 
 def save_results(ctdg_object):
     # Compress intermediates
