@@ -222,12 +222,13 @@ def meanshift(sp_table):
             cluster_ix = cluster_groups[cluster]
             genes_per_cluster = len(cluster_ix)
             if genes_per_cluster == 1:
-                elements = "na_ms"
+                elements = ["na_ms"]
             else:
-                elements = range(1, genes_per_cluster + 1)
+                elements = list(range(1, genes_per_cluster + 1))
             sp_table.loc[cluster_ix, "order"] = elements
     del sp_table["bandwidth"]
     return sp_table
+
 
 def parallel_meanshift(hmm_df, cpu):
     """
@@ -312,7 +313,11 @@ def sample_table(ctdg_obj):
     :return: annotated table
     """
     numbers = ctdg_obj.numbers
-    print("Analyzing {} cluster candidates".format(numbers.shape[0]))
+    num_clusters = numbers.shape[0]
+    if not num_clusters:
+        return None
+    print("Analyzing {} cluster candidates".format(num_clusters))
+    
     longest_sp = max([len(x) for x in numbers.species.unique()]) + 2
     longest_cluster = max([len(x) for x in numbers.cluster.unique()]) + 2
     print_msg = "{:<{sp}} {:<{cluster}} {:<10} {}{}"
@@ -337,41 +342,41 @@ def clean_p95(numbers):
     the percentile 95 sampling, and save data
     :return:
     """
-    for_removal_df = numbers.loc[numbers["p_95"] > numbers["gene_duplicates"]]
-    # Clusters that did not pass the percentile 95 threshold
-    for_removal_ix = for_removal_df.set_index(["species", "chromosome", "cluster"]).index
-    genes = analysis.selected.reset_index().set_index(["species", "chromosome", "cluster"])
-    # Annotate genes in clusters under the percentile 95 threshold
-    genes.loc[for_removal_ix, "order"] = "na_p95"
-    genes.reset_index(inplace=True)
-    genes.set_index("acc", inplace=True)
-    # Order columns
-    genes.columns = ["species", "chromosome", "symbol", "start", "end", "strand",
-                     "length", "cluster", "order"]
-    # Save genes data
-    genes_out_name = "{0}/report/{0}_genes.csv".format(analysis.name)
-    genes.to_csv(genes_out_name)
-    # Save only data of genes in clusters
-    genes_clean = genes.loc[~(genes["order"].isin(["na_p95", "na_ms", 0, "0"]))]
-    genes_clean.to_csv(genes_out_name.replace("genes", "genes_clean"))
-    # Save clusters summary information
-    
-    numbers.set_index(["species", "chromosome", "cluster"], inplace=True)
-    # Order columns
-    numbers.columns = ["gene_duplicates", "start", "end", "length", "p_95"]
-    numbers_out = genes_out_name.replace("genes", "numbers")
-    numbers.to_csv(numbers_out)
-    
-    # Save only clusters that passed the percentile 95 sampling
-    numbers_clean = numbers.loc[~(numbers.index.isin(for_removal_ix))]
-    numbers_clean.to_csv(numbers_out.replace("numbers", "numbers_clean"))
+    if numbers:
+        for_removal_df = numbers.loc[numbers["p_95"] > numbers["gene_duplicates"]]
+        # Clusters that did not pass the percentile 95 threshold
+        for_removal_ix = for_removal_df.set_index(["species", "chromosome", "cluster"]).index
+        genes = analysis.selected.reset_index().set_index(["species", "chromosome", "cluster"])
+        # Annotate genes in clusters under the percentile 95 threshold
+        genes.loc[for_removal_ix, "order"] = "na_p95"
+        genes.reset_index(inplace=True)
+        genes.set_index("acc", inplace=True)
+        # Order columns
+        genes.columns = ["species", "chromosome", "symbol", "start", "end", "strand",
+                         "length", "cluster", "order"]
+        # Save genes data
+        genes_out_name = "{0}/report/{0}_genes.csv".format(analysis.name)
+        genes.to_csv(genes_out_name)
+        # Save only data of genes in clusters
+        genes_clean = genes.loc[~(genes["order"].isin(["na_p95", "na_ms", 0, "0"]))]
+        genes_clean.to_csv(genes_out_name.replace("genes", "genes_clean"))
+        # Save clusters summary information
+        
+        numbers.set_index(["species", "chromosome", "cluster"], inplace=True)
+        # Order columns
+        numbers.columns = ["gene_duplicates", "start", "end", "length", "p_95"]
+        numbers_out = genes_out_name.replace("genes", "numbers")
+        numbers.to_csv(numbers_out)
+        
+        # Save only clusters that passed the percentile 95 sampling
+        numbers_clean = numbers.loc[~(numbers.index.isin(for_removal_ix))]
+        numbers_clean.to_csv(numbers_out.replace("numbers", "numbers_clean"))
 
 def save_results(ctdg_object):
     # Compress intermediates
     out = ctdg_object.out
     fam_name = ctdg_object.name
     tar_name = "{}/intermediates/intermediates.tgz".format(fam_name)
-    print(tar_name)
     tar_file = tarfile.open(tar_name, "x:gz")
     for intermediate in glob("{0}/intermediates/{0}*".format(fam_name)):
         tar_file.add(intermediate)
