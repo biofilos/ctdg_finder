@@ -10,7 +10,6 @@ from glob import glob
 import numpy as np
 import pandas as pd
 from sklearn.cluster import MeanShift
-from unittest.mock import inplace
 
 pd.options.mode.chained_assignment = None
 
@@ -41,7 +40,8 @@ class CtdgConfig:
         """
         # Check that the directory with the database exists
         assert os.path.exists(self.db), "directory {} with database does not exist".format(self.db)
-        db_path = '{}/pfam/pfam.hmm'.format(self.db)
+        #db_path = '{}/pfam/pfam.hmm'.format(self.db)
+        db_path = '{}/panther/panther.hmm'.format(self.db)
         # Check that the blast database files exists
         hmmer_files = sum([os.path.exists(db_path + x) for x in ['', '.h3f', '.h3i', '.h3m', '.h3p']])
         assert hmmer_files == 5, "Some of the HMMer database files with prefix pfam do not exist"
@@ -59,7 +59,7 @@ class CtdgConfig:
         banned_dirs = [os.getcwd(), self.db, '.']
         assert self.out_dir not in banned_dirs, "output direcrory can't be the ctdgfinder directory" + \
                                                 " or the directory where the ctdg database is stored"
-        
+
     def init_tables(self):
         """
         Initialize genome and gene annotation tables
@@ -117,19 +117,18 @@ class CtdgRun:
         :return: None
         """
         # Do not run analysis if final output is present
-        assert not os.path.exists("{}/{}".format(self.out, self.name)),"Results for {} exist.".format(self.name)
+        assert not os.path.exists("{}/{}".format(self.out, self.name)), "Results for {} exist.".format(self.name)
 
         if os.path.exists(self.name):
             print("Partial results for {} were found, removing them".format(self.name))
             shutil.rmtree(self.name)
-        
 
-    
-    def hmmscan(self, evalue = 1e-3):
+    def hmmscan(self, evalue=1e-3):
         out_file = "{0}/intermediates/{0}.pre_hmmer".format(self.name)
         dom_out = out_file + "_dom"
         long_out = out_file + "_long"
-        pfam_hmm = self.db  + "/pfam/pfam.hmm"
+        #pfam_hmm = self.db + "/pfam/pfam.hmm"
+        pfam_hmm = self.db + "/panther/panther.hmm"
         if self.ref_seq and not self.ref_pfam:
             print("Running HMMscan")
             cmd = "hmmscan -o {} --tblout {} --domtblout {} -E {} --cpu {} {} {}".format(long_out, out_file,
@@ -152,7 +151,8 @@ class CtdgRun:
         # Filter gene table with the genes that contain the Pfam domains found by HMMscan
         pfam_genes = []
         for pfam in pfams:
-            pfam_genes += pfam_dict[pfam]
+            if pfam in pfam_dict:
+                pfam_genes += pfam_dict[pfam]
         # Remove duplicates
         pfam_selected = set(pfam_genes)
         # Subset table
@@ -163,11 +163,11 @@ class CtdgRun:
         for sp, chrom in sp_chroms:
             try:
                 bandwidth = self.genomes.loc[(self.genomes["species"] == sp) &
-                                         (self.genomes["chromosome"] == chrom),
-                                         "bandwidth"].values[0]
+                                             (self.genomes["chromosome"] == chrom),
+                                             "bandwidth"].values[0]
             except IndexError:
                 print(sp, chrom)
-                return []
+                # return []
             selected.loc[sp_chroms[(sp, chrom)], "bandwidth"] = bandwidth
             selected.loc[sp_chroms[(sp, chrom)], "cluster"] = "{}_{}".format(self.name, chrom)
             selected_list.append(selected.loc[sp_chroms[(sp, chrom)]])
@@ -299,7 +299,8 @@ def sample_record(record, ctdg_obj):
     genes = genes.loc[genes["species"] == sp]
     fill_sample_fx = partial(sample_region, record=record,
                              chromosomes=genomes, genes=genes, db=db)
-    with futures.ProcessPoolExecutor(ctdg_obj.cpu) as pool:
+    # Try with ProcessPoolExecutor
+    with futures.ThreadPoolExecutor(ctdg_obj.cpu) as pool:
         max_dups = pool.map(fill_sample_fx, sample_chroms)
     percentile_95 = np.round(np.percentile(list(max_dups), 95), 4)
     return sp, cluster, percentile_95
@@ -317,7 +318,7 @@ def sample_table(ctdg_obj):
     if not num_clusters:
         return None
     print("Analyzing {} cluster candidates".format(num_clusters))
-    
+
     longest_sp = max([len(x) for x in numbers.species.unique()]) + 2
     longest_cluster = max([len(x) for x in numbers.cluster.unique()]) + 2
     print_msg = "{:<{sp}} {:<{cluster}} {:<10} {}{}"
@@ -342,7 +343,7 @@ def clean_p95(numbers):
     the percentile 95 sampling, and save data
     :return:
     """
-    if numbers:
+    if numbers.shape[0] > 0:
         for_removal_df = numbers.loc[numbers["p_95"] > numbers["gene_duplicates"]]
         # Clusters that did not pass the percentile 95 threshold
         for_removal_ix = for_removal_df.set_index(["species", "chromosome", "cluster"]).index
@@ -361,16 +362,17 @@ def clean_p95(numbers):
         genes_clean = genes.loc[~(genes["order"].isin(["na_p95", "na_ms", 0, "0"]))]
         genes_clean.to_csv(genes_out_name.replace("genes", "genes_clean"))
         # Save clusters summary information
-        
+
         numbers.set_index(["species", "chromosome", "cluster"], inplace=True)
         # Order columns
         numbers.columns = ["gene_duplicates", "start", "end", "length", "p_95"]
         numbers_out = genes_out_name.replace("genes", "numbers")
         numbers.to_csv(numbers_out)
-        
+
         # Save only clusters that passed the percentile 95 sampling
         numbers_clean = numbers.loc[~(numbers.index.isin(for_removal_ix))]
         numbers_clean.to_csv(numbers_out.replace("numbers", "numbers_clean"))
+
 
 def save_results(ctdg_object):
     # Compress intermediates
@@ -386,6 +388,7 @@ def save_results(ctdg_object):
     os.makedirs(out, exist_ok=True)
     out_final = "{}/{}".format(out, fam_name)
     shutil.move(fam_name, out_final)
+
 
 if __name__ == "__main__":
     # Define arguments
@@ -455,7 +458,8 @@ if __name__ == "__main__":
         # Run sampling
         numbers = sample_table(analysis)
         # Clean tables and save CSVs
-        clean_p95(numbers)
+        if numbers:
+            clean_p95(numbers)
     else:
         print("No clusters were found")
     save_results(analysis)
