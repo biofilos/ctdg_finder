@@ -12,8 +12,7 @@ import pandas as pd
 from sklearn.cluster import MeanShift
 
 pd.options.mode.chained_assignment = None
-
-
+# d
 # Define class CTDG
 class CtdgConfig:
     def __init__(self, out_dir, db, hmmer_samples, sp):
@@ -68,9 +67,14 @@ class CtdgConfig:
         genomes = pd.read_csv(self.genome_file)
         genomes.dropna(inplace=True)
         genomes.loc[:, 'chromosome'] = genomes['chromosome'].astype(str)
-        all_genes = pd.read_csv(self.all_genes_file)
+        all_genes = pd.read_csv(self.all_genes_file, index_col=0)
         all_genes.loc[:, 'chromosome'] = all_genes['chromosome'].astype(str)
-        all_genes.set_index('acc', inplace=True)
+        if "acc" in all_genes.columns:
+            all_genes.set_index('acc', inplace=True)
+        # clean columns
+        for i in all_genes.columns:
+            if "Unnamed" in i:
+                del all_genes[i]
         # self.all_genes = self.all_genes.loc[~(self.all_genes['chromosome'].isnull()) &
         #                                     (self.all_genes['chromosome'] != "NA")]
 
@@ -90,7 +94,7 @@ class CtdgRun:
         self.out = ctdg.out_dir
         self.samples = ctdg.hmmer_samples
         # From arguments
-        self.cpu = args.cpu - 1
+        self.cpu = args.cpu
         self.ref_seq = args.ref_seq
         self.ref_pfam = args.ref_pfam
         self.name = args.name_family
@@ -143,7 +147,7 @@ class CtdgRun:
             for line in open(out_file):
                 if not line.startswith("#"):
                     data = [x for x in line.split(" ") if x != ""]
-                    pfams.append(data[1])
+                    pfams.append(data[0])
         else:
             pfams = [self.ref_pfam]
         # Load Pfam Dictionary
@@ -165,12 +169,13 @@ class CtdgRun:
                 bandwidth = self.genomes.loc[(self.genomes["species"] == sp) &
                                              (self.genomes["chromosome"] == chrom),
                                              "bandwidth"].values[0]
+               # return []
+                selected.loc[sp_chroms[(sp, chrom)], "bandwidth"] = bandwidth
+                selected.loc[sp_chroms[(sp, chrom)], "cluster"] = "{}_{}".format(self.name, chrom)
+                selected_list.append(selected.loc[sp_chroms[(sp, chrom)]])
             except IndexError:
-                print(sp, chrom)
-                # return []
-            selected.loc[sp_chroms[(sp, chrom)], "bandwidth"] = bandwidth
-            selected.loc[sp_chroms[(sp, chrom)], "cluster"] = "{}_{}".format(self.name, chrom)
-            selected_list.append(selected.loc[sp_chroms[(sp, chrom)]])
+                pass
+                #print(sp, chrom)
         return selected_list
 
     @property
@@ -255,9 +260,16 @@ def sample_region(sample_chrom, record, chromosomes, genes, db):
     # Select from chromosomes at least the same size of the cluster
     # Get sample list of chromosomes
     # sample_chrom = np.random.choice(chromosomes.chromosome.values)
-    sample_chrom_length = chromosomes.loc[chromosomes["chromosome"] == sample_chrom, "length"]
-    sample_start = np.random.randint(1, sample_chrom_length - length)
-    sample_end = sample_start + length
+    sample_chrom_length = chromosomes.loc[chromosomes["chromosome"] == sample_chrom, "length"].values[0]
+    acceptable_chrom_sample = sample_chrom_length - length
+    # If the region to be sampled is larger than the chromosome
+    # being sampled, sample in the entire chromosome
+    if acceptable_chrom_sample <= 1:
+        sample_start = 1
+        sample_end = sample_chrom_length
+    else:
+        sample_start = np.random.randint(1, acceptable_chrom_sample)
+        sample_end = sample_start + length
 
     sample_genes = genes.loc[(genes["chromosome"] == sample_chrom) &
                              (genes["start"] < sample_end) &
@@ -353,13 +365,15 @@ def clean_p95(numbers):
         genes.reset_index(inplace=True)
         genes.set_index("acc", inplace=True)
         # Order columns
-        genes.columns = ["species", "chromosome", "symbol", "start", "end", "strand",
-                         "length", "cluster", "order"]
+        genes.columns = ["species", "chromosome", "cluster", "symbol", "start", "end",
+                         "strand", "length", "order"]
+        genes.reset_index(inplace=True)
         # Save genes data
         genes_out_name = "{0}/report/{0}_genes.csv".format(analysis.name)
         genes.to_csv(genes_out_name)
         # Save only data of genes in clusters
         genes_clean = genes.loc[~(genes["order"].isin(["na_p95", "na_ms", 0, "0"]))]
+        genes_clean.set_index("acc", inplace=True)
         genes_clean.to_csv(genes_out_name.replace("genes", "genes_clean"))
         # Save clusters summary information
 
@@ -458,7 +472,7 @@ if __name__ == "__main__":
         # Run sampling
         numbers = sample_table(analysis)
         # Clean tables and save CSVs
-        if numbers:
+        if type(numbers) == pd.DataFrame and numbers.shape[0] > 1:
             clean_p95(numbers)
     else:
         print("No clusters were found")
