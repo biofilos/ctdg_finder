@@ -312,7 +312,7 @@ def sample_record(record, ctdg_obj):
     fill_sample_fx = partial(sample_region, record=record,
                              chromosomes=genomes, genes=genes, db=db)
     # Try with ProcessPoolExecutor
-    with futures.ThreadPoolExecutor(ctdg_obj.cpu) as pool:
+    with futures.ProcessPoolExecutor(ctdg_obj.cpu) as pool:
         max_dups = pool.map(fill_sample_fx, sample_chroms)
     percentile_95 = np.round(np.percentile(list(max_dups), 95), 4)
     return sp, cluster, percentile_95
