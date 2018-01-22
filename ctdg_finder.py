@@ -365,8 +365,8 @@ def clean_p95(numbers):
         genes.reset_index(inplace=True)
         genes.set_index("acc", inplace=True)
         # Order columns
-        genes.columns = ["species", "chromosome", "cluster", "symbol", "start", "end",
-                         "strand", "length", "order"]
+        genes.columns = ["species", "chromosome", "cluster", "start", "end",
+                         "strand", "order"]
         genes.reset_index(inplace=True)
         # Save genes data
         genes_out_name = "{0}/report/{0}_genes.csv".format(analysis.name)
