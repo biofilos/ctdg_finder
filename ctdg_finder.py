@@ -131,7 +131,7 @@ class CtdgRun:
         out_file = "{0}/intermediates/{0}.pre_hmmer".format(self.name)
         dom_out = out_file + "_dom"
         long_out = out_file + "_long"
-        #pfam_hmm = self.db + "/pfam/pfam.hmm"
+        # pfam_hmm = self.db + "/pfam/pfam.hmm"
         pfam_hmm = self.db + "/panther/panther.hmm"
         if self.ref_seq and not self.ref_pfam:
             print("Running HMMscan")
@@ -169,13 +169,13 @@ class CtdgRun:
                 bandwidth = self.genomes.loc[(self.genomes["species"] == sp) &
                                              (self.genomes["chromosome"] == chrom),
                                              "bandwidth"].values[0]
-               # return []
+                # return []
                 selected.loc[sp_chroms[(sp, chrom)], "bandwidth"] = bandwidth
                 selected.loc[sp_chroms[(sp, chrom)], "cluster"] = "{}_{}".format(self.name, chrom)
                 selected_list.append(selected.loc[sp_chroms[(sp, chrom)]])
             except IndexError:
                 pass
-                #print(sp, chrom)
+                # print(sp, chrom)
         return selected_list
 
     @property
@@ -446,6 +446,7 @@ if __name__ == "__main__":
                         action="store",
                         default=None,
                         help="run analyses with all the sequences in a directory")
+
     # Check if hmmerscan is installed. Since this is not required for defining the analysis, it is executed before
     # the class definition
     hmmer_path = shutil.which('hmmscan')
@@ -465,6 +466,7 @@ if __name__ == "__main__":
     analysis.create_folders()
     # Run HMMscan and Meanshift step
     hmmers = analysis.hmmscan()
+
     if hmmers:
         analysis.selected = parallel_meanshift(hmmers, args.cpu)
         # Organize summary table for each cluster candidate
