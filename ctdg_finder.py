@@ -6,6 +6,7 @@ import tarfile
 from concurrent import futures
 from functools import partial
 from glob import glob
+import networkx as nx
 
 import numpy as np
 import pandas as pd
@@ -274,13 +275,14 @@ def sample_region(sample_chrom, record, chromosomes, genes, db):
     sample_genes = genes.loc[(genes["chromosome"] == sample_chrom) &
                              (genes["start"] < sample_end) &
                              (genes["end"] > sample_start)].index
-    json_path = "{}/hmmers/{}_{}.json".format(db, sp, sample_chrom)
-    chrom_dict = json.load(open(json_path))
-    max_dups_list = [len(set(chrom_dict[x]).intersection(set(sample_genes))) for x in sample_genes]
+    sp_graph = nx.read_graphml("{}/graphs/{}_{}.graphml".format(db,
+                                                         sp, sample_chrom))
+    region_graph = nx.subgraph(sp_graph, sample_genes)
+    max_dups_list = [x for x in nx.connected_component_subgraphs(region_graph)]
     if not max_dups_list:
         max_dups = 0
     else:
-        max_dups = max(max_dups_list)
+        max_dups = len(max(max_dups_list, key=len))
     # If there is only one gene, there are no duplicates
     if max_dups == 1:
         max_dups = 0
