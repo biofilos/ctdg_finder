@@ -248,7 +248,7 @@ def parallel_meanshift(hmm_df, cpu):
     return pd.concat(ms)
 
 
-def sample_region(sample_chrom, record, chromosomes, genes, db):
+def sample_region(sample_chrom, record, chromosomes, genes, db, graph_dict=None):
     """
     Returns a tuple with chromosome, start and end
     :param record: list of records. species should be in position 1, chromosome in position 2, length
@@ -277,6 +277,7 @@ def sample_region(sample_chrom, record, chromosomes, genes, db):
                              (genes["end"] > sample_start)].index
     sp_graph = nx.read_graphml("{}/graphs/{}_{}.graphml".format(db,
                                                          sp, sample_chrom))
+    # sp_graph = graph_dict[sample_chrom]
     region_graph = nx.subgraph(sp_graph, sample_genes)
     max_dups_list = [x for x in nx.connected_component_subgraphs(region_graph)]
     if not max_dups_list:
@@ -311,8 +312,11 @@ def sample_record(record, ctdg_obj):
     # Get array of chromosomes to sample
     sample_chroms = np.random.choice(genomes.chromosome, samples)
     genes = genes.loc[genes["species"] == sp]
+    # graph_dict = {x: nx.read_graphml("{}/graphs/{}_{}.graphml".format(db, sp, x)) for x in sample_chroms}
+
     fill_sample_fx = partial(sample_region, record=record,
-                             chromosomes=genomes, genes=genes, db=db)
+                             chromosomes=genomes, genes=genes, db=db,
+                             graph_dict=None)
     # Try with ProcessPoolExecutor
     with futures.ProcessPoolExecutor(ctdg_obj.cpu) as pool:
         max_dups = pool.map(fill_sample_fx, sample_chroms)
