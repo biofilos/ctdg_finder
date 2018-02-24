@@ -67,8 +67,10 @@ class CtdgConfig:
         genomes = pd.read_csv(self.genome_file)
         genomes.dropna(inplace=True)
         genomes.loc[:, 'chromosome'] = genomes['chromosome'].astype(str)
+        genomes.sort_index(inplace=True)
         all_genes = pd.read_csv(self.all_genes_file, index_col=0)
         all_genes.loc[:, 'chromosome'] = all_genes['chromosome'].astype(str)
+        all_genes.sort_index(inplace=True)
         if "acc" in all_genes.columns:
             all_genes.set_index('acc', inplace=True)
         # clean columns
