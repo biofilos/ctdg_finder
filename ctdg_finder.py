@@ -276,17 +276,13 @@ def sample_region(sample_chrom, record, chromosomes, genes, db):
     sample_genes = genes.loc[(genes["chromosome"] == sample_chrom) &
                              (genes["start"] < sample_end) &
                              (genes["end"] > sample_start)].index
-    json_path = "{}/hmmers/{}_{}.json".format(db, sp, sample_chrom)
-    chrom_dict = json.load(open(json_path))
-    max_dups_list = [len(set(chrom_dict[x]).intersection(set(sample_genes))) for x in sample_genes]
-    if not max_dups_list:
+    # json_path = "{}/hmmers/{}_{}.json".format(db, sp, sample_chrom)
+    # chrom_dict = json.load(open(json_path))
+    chrom_df = pd.read_csv("{}/matrices/{}_{}.csv".format(db, sp, sample_chrom), index_col=0)
+    on_both = set(sample_genes).intersection(set(chrom_df.index))
+    max_dups = chrom_df.loc[on_both, on_both].sum().max()
+    if not max_dups:
         max_dups = 0
-    else:
-        max_dups = max(max_dups_list)
-    # If there is only one gene, there are no duplicates
-    if max_dups == 1:
-        max_dups = 0
-    # print("Chromosome {} ({} - {}): {}".format(sample_chrom, sample_start, sample_end, max_dups))
     return max_dups
 
 
@@ -316,7 +312,10 @@ def sample_record(record, ctdg_obj):
     # Try with ProcessPoolExecutor
     with futures.ProcessPoolExecutor(ctdg_obj.cpu) as pool:
         max_dups = pool.map(fill_sample_fx, sample_chroms)
-    percentile_95 = np.round(np.percentile(list(max_dups), 95), 4)
+    max_dups_a = pd.np.array(list(max_dups))
+    # Fill nan with 0. This might happen if there were no genes in a sample
+    max_dups_a[pd.np.isnan(max_dups_a)] = 0
+    percentile_95 = np.round(np.percentile(max_dups_a, 95), 4)
     return sp, cluster, percentile_95
 
 
