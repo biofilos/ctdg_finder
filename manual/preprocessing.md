@@ -22,7 +22,7 @@ The last step consists on generating JSON files containing the BLAST hits for ea
 ### From Scratch
 CTDGFinder can be run using custom databases. The format and content of a minimal example of the necessary files follows (Note: space characters should be avoided in all files):  
 
-* `chromosomes.csv`: comma-delimited file. The index (first column) can be an arbitrary unique string, which will not be used for the analysis. The columns *sp* (species name), *chromosome* (chromosome name), and *length* (chromosome length) must be included.
+* `chromosomes.csv`: comma-delimited file. The index (first column) can be an arbitrary unique string, which will not be used for the analysis. The columns *species* (species name), *chromosome* (chromosome name), and *length* (chromosome length) must be included.
 * `genes_parsed.csv`: comma-delimited file. The index should have the name *acc*. It will be the accession number (or other unique identifier, which has to be consistent in this file and the sequence file). The rest of the columns are: *start*, *end* (start and end coordinates), *strand* (strand using the notation 1, -1), *chromosome* (chromosome name), *species* (species name), *symbol* (short gene name), *length* (length of the gene)
 * `all_seqs.fa`: FASTA file. The name of each sequence must comply with the following format: \>species_name|chromosome|accession|symbol|start|end|strand  
 
