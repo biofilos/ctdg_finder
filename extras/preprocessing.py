@@ -6,10 +6,12 @@ import pandas as pd
 import numpy as np
 from Bio import Entrez, SeqIO
 from concurrent import futures
-Entrez.email = 'juan.f.ortiz@vanderbilt.edu'
+Entrez.email = 'user@mail.com'
 
 GENOME_DB = "genomes.gb"
 CPUS = int(sys.argv[1])
+
+pd.options.mode.chained_assignment = None
 
 
 def parse_gb(record):
@@ -124,10 +126,9 @@ def remove_overlaps(chrom_only):
     first_to_one_to_last = chrom_only.index.values[:-1]
     second_to_last = chrom_only.index.values[1:]
 
-    overlapping = chrom_only.loc[second_to_last,
-                                 'start'] < chrom_only.loc[first_to_one_to_last, 'end']
+    overlapping = chrom_only.loc[second_to_last, 'start'] < chrom_only.loc[first_to_one_to_last, 'end'].values
 
-    same_strand = chrom_only.loc[second_to_last, 'strand'] == chrom_only.loc[first_to_one_to_last, 'strand']
+    same_strand = chrom_only.loc[second_to_last, 'strand'] == chrom_only.loc[first_to_one_to_last, 'strand'].values
 
     for_removal = same_strand & overlapping
     for_removal_indices = for_removal.loc[for_removal].index
@@ -148,7 +149,7 @@ def remove_overlaps_sp(sp):
     sp_table = out_data.loc[out_data.species == sp]
 
     # Set indices so that a data frame per chromosome with ordered genes by position and length can be easily selected
-    sp_table.sort_values(['start', 'length'], inplace=True)
+    sp_table.sort_values(["chromosome", 'start', 'length'], inplace=True)
 
     # Remove entries that have the same start position and leave the longest one
     sp_table.drop_duplicates('start', inplace=True)
@@ -222,14 +223,10 @@ else:
     out_data = pd.read_csv('genes_cds.csv')
 
 
-if os.path.exists('genes_parsed.csv'):
-    all_sp_table = pd.read_csv('genes_parsed.csv')
-else:
-    with futures.ProcessPoolExecutor(CPUS) as pool:
-        sp_tables = pool.map(remove_overlaps_sp, list(set(out_data.species.values)))
-    all_sp_table = pd.concat(sp_tables)
-    all_sp_table.to_csv('genes_parsed.csv')
-    del out_data
+with futures.ProcessPoolExecutor(CPUS) as pool:
+    sp_tables = pool.map(remove_overlaps_sp, list(set(out_data.species.values)))
+all_sp_table = pd.concat(list(sp_tables))
+all_sp_table.to_csv('genes_parsed.csv')
 
 print("GenBank annotation parsed")
 
@@ -318,9 +315,9 @@ for sp in chrom_dict:
     for chrom in chrom_dict[sp]:
         annotations.append(chrom_dict[sp][chrom]['annotation'])
 
-assembly_table = pd.DataFrame(list(annotations), columns=['sp', 'chromosome', 'taxid',
+assembly_table = pd.DataFrame(list(annotations), columns=['species', 'chromosome', 'taxid',
                                                           'GI', 'chr_acc', 'Assembly', 'length'])
-assembly_table['sp'] = assembly_table['sp'].map(lambda x: x.replace(' ', '_'))
+assembly_table['species'] = assembly_table['species'].map(lambda x: x.replace(' ', '_'))
 
 assembly_table.to_csv('chromosomes.csv')
 print("Assembly file, generated")
