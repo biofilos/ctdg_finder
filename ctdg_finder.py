@@ -12,8 +12,10 @@ import pandas as pd
 from sklearn.cluster import MeanShift
 
 pd.options.mode.chained_assignment = None
-# d
+
 # Define class CTDG
+
+
 class CtdgConfig:
     def __init__(self, out_dir, db, hmmer_samples, sp):
         self.sp = sp
@@ -129,6 +131,43 @@ class CtdgRun:
             print("Partial results for {} were found, removing them".format(self.name))
             shutil.rmtree(self.name)
 
+    def strict_hmmer(self, hmmer_out, threshold):
+        """
+        filter out hmmer with less mutual coverare specified by the threshold argument
+        :param threshold: proportion of sequence length (in query and subject) to be used as filter
+        :param hmmer_out: output (.dom) of hmmerscan
+        :return: hmmer accessions that passed the threshold
+        """
+        pfam_filtered_fn = hmmer_out.replace("_dom", "_filtered_dom")
+        pfam_filtered = open(pfam_filtered_fn, "w")
+        pfams = []
+        for line in open(hmmer_out):
+            # Skip comment lines
+            if not line.startswith("#"):
+                # Process each line
+                data_line = [x for x in line.split(' ') if x != ""]
+                acc = data_line[0].split("|")[0]
+                seq = acc
+                pfam = data_line[3]
+                # Include entries with a minimum coverage
+                # in both the hmm and the query of 30%
+                hmm_start = int(data_line[15])
+                hmm_end = int(data_line[16])
+                hmm_aln_len = hmm_end - hmm_start
+                hmm_len = int(data_line[5])
+                hmm_coverage = hmm_aln_len / hmm_len
+
+                q_len = int(data_line[2])
+                q_end = int(data_line[20])
+                q_start = int(data_line[19])
+                q_aln_len = q_end - q_start
+                query_coverage = q_aln_len / q_len
+                if query_coverage >= threshold and hmm_coverage >= threshold:
+                    pfam_filtered.write(",".join(data_line))
+                    pfams.append(pfam)
+        pfam_filtered.close()
+        return pfams
+
     def hmmscan(self, evalue=1e-3):
         out_file = "{0}/intermediates/{0}.pre_hmmer".format(self.name)
         dom_out = out_file + "_dom"
@@ -137,7 +176,7 @@ class CtdgRun:
         pfam_hmm = self.db + "/panther/panther.hmm"
         if self.ref_seq and not self.ref_pfam:
             print("Running HMMscan")
-            cmd = "hmmscan -o {} --tblout {} --domtblout {} -E {} --cpu {} {} {}".format(long_out, out_file,
+            cmd = "hmmsearch -o {} --tblout {} --domtblout {} -E {} --cpu {} {} {}".format(long_out, out_file,
                                                                                          dom_out,
                                                                                          evalue, self.cpu,
                                                                                          pfam_hmm, self.ref_seq)
@@ -145,11 +184,7 @@ class CtdgRun:
             os.system(cmd)
 
             # Parse the Pfam accessions found
-            pfams = []
-            for line in open(out_file):
-                if not line.startswith("#"):
-                    data = [x for x in line.split(" ") if x != ""]
-                    pfams.append(data[0])
+            pfams = self.strict_hmmer(dom_out, 0.3)
         else:
             pfams = [self.ref_pfam]
         # Load Pfam Dictionary
@@ -309,12 +344,15 @@ def sample_record(record, ctdg_obj):
     genes = genes.loc[genes["species"] == sp]
     fill_sample_fx = partial(sample_region, record=record,
                              chromosomes=genomes, genes=genes, db=db)
+
     # Try with ProcessPoolExecutor
     with futures.ProcessPoolExecutor(ctdg_obj.cpu) as pool:
         max_dups = pool.map(fill_sample_fx, sample_chroms)
     max_dups_a = pd.np.array(list(max_dups))
     # Fill nan with 0. This might happen if there were no genes in a sample
     max_dups_a[pd.np.isnan(max_dups_a)] = 0
+    # Hits with one "duplicate" is against itself
+    # max_dups_a[max_dups_a == 1] = 0
     percentile_95 = np.round(np.percentile(max_dups_a, 95), 4)
     return sp, cluster, percentile_95
 
