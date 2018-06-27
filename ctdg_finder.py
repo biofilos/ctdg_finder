@@ -197,7 +197,9 @@ class CtdgRun:
         # Remove duplicates
         pfam_selected = set(pfam_genes)
         # Subset table
-        selected = self.genes.loc[pfam_selected]
+        selected = self.genes.loc[pfam_selected.intersection(set(self.genes.index.values))]
+        # if len(selected) == 0:
+        #     print(pfam_selected)
         # Save clusters in list, so that they can be processed in parallel
         selected_list = []
         sp_chroms = selected.groupby(["species", "chromosome"]).groups
