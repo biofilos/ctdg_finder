@@ -35,17 +35,11 @@ Optional parameters
 * \-(-e)value: Evalue threshold for BLASTP. If none is specified, 0.001 is used by default.
 * \-(-p): Accession number to use as query, instead of fasta query. Useful for large scale analyses 
 
-###Output
-A sample console output is graphically explained below:  
-![output](screenshot.png)
-
+### Output
 
 Under the ctdg_out directory (or the directory specified by \--out_dir), a directory for each gene family (specified by \--name_family) (name_family) will be created. This is useful in case several analyses are going to be performed. In case an analysis is going to be run for a gene family that already exists in the output direcrory, ctdgFinder will terminate.  
 Under the gene family directory, the results from the run are found in the "report" directory. The "report" directory contain the following files:  
 
-* `name_family.blast`: raw blast result using the reference sequence(s) (specified by --ref_seq) and the blast database.
-* `name_family.blast_filtered`, `name_family.blast_out`: parsed blast outputs in csv format. `name_family.blast_filtered` is a blast result, in which only subjects with more than 30% of sequence length overlap with their queries. `name_family.blast_out` contains the same results as `name_family.blast_filtered`, but it is enriched with genomic annotation. This is the file that is going to be used to define the cluster candidates
-* `blast_samples.tgz`: compressed tar.gz file that contains the sampled coordinates for each species and cluster candidate. Under the name_family directory, genome-wide (blast_samples_gw) and in-chromosome (blast_samples) samples set are contained. In each of the sample sets, .coords files containing the species name, chromosome name, and start and stop coordinates describe the sample coordinates used in the analysis
 * `name_family_genes.csv`: genes found in the analysis. Most of the columns are self-explanatory. The "cluster" column contains the name of the cluster where the gene was found, and the "order" column describes the order (according to the genomic coordinates) of the gene in the ctdg. If the "cluster" and "order" columns have 0 (zero), the gene was found as single copy in that chromosome. If the value of "cluster" and "order" is "na", the gene was found in a chromosome with cluster candidates, but were discarded by either the meanshift or the statistical sampling steps.
 * `name_family_numbers.csv`: Coordinates of the cluster candidates. The values of the "cluster" column follow the convention for the name_family_genes.csv file. The column "perc95_chrom" and "perc95_gw" columns describe the 95th percentile of the paralogs empirical distribution that was sampled in the analysis.
 * `name_family_numbers_clean.csv`: A version of the `name_family_numbers.csv` file witout rejected clusters ("na" value in the "cluster" column).
