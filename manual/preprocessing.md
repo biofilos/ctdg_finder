@@ -1,29 +1,51 @@
 ## Preprocessing
-### From NCBI genomes
-This section considers the case where the user wants to select a set of species from the [NCBI genomes](http://ftp.ncbi.nih.gov/genomes) database.  
-In order to use CTDGFinder with custom databases, a set of files must be generated. The following two files are required (the archive `mini_raw.tgz` contains the files used to build the sample database `mini`):  
+CTDGFinder uses three basic annotation files to run, as well as to set-up the "homology" tables. 
 
-* `proteomes.fa`: FASTA file containing most of the protein sequences of the species to be considered (the preprocessing script will attempt to download sequences not found in `proteomes.fa`, but it will severely affect performance, and generate unnecessary traffic on the NCBI server). Importantly, the accession number must be in the field 4 of the sequence name (fields being separated by "|"; this is the default format of protein sequences downloaded from the NCBI). 
-* `genomes.gb`: GenBank file with genome annotations. Must contain CDS features, which will be considered for genes extraction.  
+* `chromosomes.csv`: Contains chromosome information in the following columns: species, chromosome, length.
 
-With both files in the current directory, run `preprocessing.py` (from the extras directory). It receives one argument, which is the number of cores required for the parsing process.  
-The script will generate three files that will be used in CTDGFinder (genes_cds.csv and mini_table.csv are intermediate files, useful only for debugging purposes):  
+* `genes_parsed.csv`: Gene annotation with the following columns: acc (accession number, must be unique), species\*, chromosome\*, start, end, strand. \*: must match the information in the `chromosomes.csv` table.
 
-* `chromosomes.csv`: Contains chromosome information (species, chromosome name, taxonomy ID, accession number, assembly code, and length).
-* `genes_parsed.csv`: Gene annotation. Contains accession number, genomic coordinates, species name, and symbol and gene names for non-overlapping genes.
-* `all_seqs.fa`: FASTA file containing protein sequences, sequence names, and associated information for all the genes in the `genes_parsed.csv` file.
+* `seqs_hmmer`: FASTA file containing protein sequences, sequence names, and associated information for all the genes in the `genes_parsed.csv`. The sequence header must have this form: `>accession|species|chromosome|start|end|strand`.
 
-Now, a BLAST database has to be generated based on the `all_seqs.fa` file. In order to do that, run `makeblastdb -dbtype prot -in all_seqs.fa`.  
+## Database generation using HMMer
 
-The next step consists on running an all vs. all BLASTP using all the sequences in `all_seqs.fa`. In order to automate the process, run `all_blasts.py` (from the extras directory). A sample run would look like: `python extras/all_blasts.py all_seqs.fa blasts 8` where the first argument points to `all_seqs.fa` (and its associated BLAST database files), the second argument points to the output directory, and the third argument is the number of cores used in the computation. It will generate a directory from the second argument. The files with a `.blast_out` extension will be used for the dictionary generation (the `done` directory contains raw BLAST output files and intermediate parsing files)
+This version of CTDGFinder was modified to use HMMer instead of Blast. More recent advances in orthology calling are using HMM profiles to define orthologous groups and gene families (see [Panther](http://pantherdb.org/) and the [Quest of orthologs DB repository](https://questfororthologs.org/orthology_databases), and of course, [Pfam](https://pfam.xfam.org/)). For that reason, CTDGFinder wants to make it easier to use those resources on its pipeline.  
+A substantial HMMsearch run has to be performed only once to annotate the proteomes with their domains, gene families, orthology groups, etc present in the HMM database. However, this potential downside can be leveraged for large-scale analyses. If the user wants to identify all the CTDGs present in a set of proteomes, they won't have to run HMMscan for each protein, but used the precomputed HMMscan search by using the new parameter `-p` in CTDGFinder, which instead of using a sequence as a query (do not use the `-f` parameter in this case), it will use the HMM accession specified by `-p` as a query. Given that a large-scale analysis can include several thousand HMMscan searches, this significantly improves the runtime of CTDGFinder on those cases. A test case example will be provided.  
 
-The last step consists on generating JSON files containing the BLAST hits for each gene in the same chromosome and their associated e-value. This task is accomplished by the `hits_dictionary.py` script (in the `extras` directory). A sample run will look like `python extras/hits_dictionary.py blasts genes_parsed.csv`, where the firs argument is the directory containing the `.blast_out` files, and the second argument should point to the `genes_parsed.csv` file.
+### Preprocessing steps
+All this steps are included in the script `extras/run_hmmer.sh`, but will be explained here in case they have to be tweaked by the used.  
 
-### From Scratch
-CTDGFinder can be run using custom databases. The format and content of a minimal example of the necessary files follows (Note: space characters should be avoided in all files):  
+#### Note on intergenic distances and overlapping genes.  
+Since no `preprocessing.py` is going to be run, it is assumed that the genes are properly annotated. In the Blast version of `preprocessing.py`, overlapping genes were removed, to make sure no negative intergenic distances were called, and to reduce the chances of calling isoforms as genes. Although it is not very common, overlapping genes do exist in many species, and in this version, *no check for overlapping genes will be performed*. In case of encountering overlapping genes, the script `bandwith.py` will set its intergenic distance to zero.  
 
-* `chromosomes.csv`: comma-delimited file. The index (first column) can be an arbitrary unique string, which will not be used for the analysis. The columns *species* (species name), *chromosome* (chromosome name), and *length* (chromosome length) must be included.
-* `genes_parsed.csv`: comma-delimited file. The index should have the name *acc*. It will be the accession number (or other unique identifier, which has to be consistent in this file and the sequence file). The rest of the columns are: *start*, *end* (start and end coordinates), *strand* (strand using the notation 1, -1), *chromosome* (chromosome name), *species* (species name), *symbol* (short gene name), *length* (length of the gene)
-* `all_seqs.fa`: FASTA file. The name of each sequence must comply with the following format: \>species_name|chromosome|accession|symbol|start|end|strand  
+#### Directory structure
+assuming that `ctdg_db` is the base directory where the annotation files reside (genes_parsed.csv, pre_chromosomes.csv, etc), the following directories are going to be created
+* ctdg_db/hmmer
+* ctdg_db/hmmers
+* ctdg_db/graphs
+* ctdg_db/matrices  
+* ctdg_db/sp_hmmers
 
-Importantly, the information in each sequence name should match with the fields in `genes_parsed.csv` and `chromosomes.csv`. With these three files, you can continue using the scripts `all_blasts.py` and `hits_dictionary.py` as described above. 
+NOTE: Observe that chromosomes.csv has been changed to pre_chromosomes.csv. The reason is that in the next step, the bandwidth parameter for MeanShift is going to be calculated, and that step will generate chromosomes.csv which will contain a `bandwidth` column.  
+
+#### Calculate bandwidth parameter for MeanShift  
+In order to avoid calculating it on each run, it can be calculated for all chromosomes in one go, improving the performance of CTDGFinder
+
+#### Run HMMsearch  
+The gene family/orthologs source selected by the user (and properly formatted by using `hmmpress`) will be used as database, and a sequence file named seqs_hmmer.fa will be used as query. By default, the hmm file will be assumed to be stored as `ctdg_db/panther/panther.hmm` and `ctdg_db/seqs_hmmer.fa` where `ctdg_db` is the directory where all the annotation files are stored (chromosomes.csv, genes_parsed.csv, etc). The E-value used for the search is 0.0001. If the user wants to use a different E-value, it will have to be changed both in this step, as well as in the source code of CTDGFinder.  
+Notes on annotation files structure:
+* seqs_hmmer.fa has to have a header with the following format: >accession|species|chromosome|start|end|strand
+* genes_parsed.csv requires the following columns: acc, species, chromosome, start, end, strand. acc is the accession of each gene, and should match the one in seqs_hmmer.fa
+#### Parse HMMsearch output  
+In this step, the HMMscan output will be parsed to generate a JSON dictionary containing each gene family as keys, and a list of all genes part of that gene family. **NOTE**: For my own research, I am using PantherDB, which is a gene family database. For that reason, I put an extra filter to the HMMscan results, so that only sequence hits covering 30% of both query and subject will be kept. If you use a domain-based database (e.g. Pfam), you might want to remove this constraint. Contact me if you want to do it in that way, because so far, this feature is hard-coded in CTDGFinder.
+
+#### Generate chromosome-specific JSON files
+These files contain each gene as keys, and a list of all the genes in that chromosomes that are in the same gene family as the values. Testing different parsing approaches, I found that reading individual files per chromosome on each of the sampling steps is the fastest way. Mainly because a species-JSON file can get very big, and would have to be copied on all the threads, which has shown to have a negative impact in performance.  
+
+#### Generate homology graphs  
+In order to generate the homology tables used in the sampling process of CTDGFinder, graphs will be generated where two genes will have an edge if they are in the same gene family. Since a gene can be in different gene families (or have more than one domain), this procedure can significantly reduce the size of the files used in the analysis.  
+
+#### Generate homology matrices  
+Finally, homology matrices will be generated. The general format consists on csv files where genes on each chromosome (for each species) are the indices of rows and columns, and the values of each cell (0, 1) show if a pair of genes are in the same gene fmaily (or share at least one domain).  
+
+
