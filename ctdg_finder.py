@@ -104,7 +104,7 @@ class CtdgRun:
         self.name = args.name_family
         self.db = args.db
         self.selected = None
-
+        self.chrom_only = args.chrom_only
     def create_folders(self):
         """
         Create the directories where all the
@@ -214,7 +214,7 @@ class CtdgRun:
                 selected_list.append(selected.loc[sp_chroms[(sp, chrom)]])
             except IndexError:
                 pass
-                # print(sp, chrom)
+                print(sp, chrom)
         return selected_list
 
     @property
@@ -342,7 +342,11 @@ def sample_record(record, ctdg_obj):
     genomes = genomes.loc[(genomes["species"] == sp) &
                           (genomes["length"] >= length)]
     # Get array of chromosomes to sample
-    sample_chroms = np.random.choice(genomes.chromosome, samples)
+    # If sampling only on one chromosome
+    if ctdg_obj.chrom_only:
+        sample_chroms = [record[2]] * samples
+    else:
+        sample_chroms = np.random.choice(genomes.chromosome, samples)
     genes = genes.loc[genes["species"] == sp]
     fill_sample_fx = partial(sample_region, record=record,
                              chromosomes=genomes, genes=genes, db=db)
@@ -402,10 +406,13 @@ def clean_p95(numbers):
         for_removal_ix = for_removal_df.set_index(["species", "chromosome", "cluster"]).index
         genes = analysis.selected.reset_index().set_index(["species", "chromosome", "cluster"])
         # Annotate genes in clusters under the percentile 95 threshold
-        genes.loc[for_removal_ix, "order"] = "na_p95"
+        if len(for_removal_ix) > 0:
+            genes.loc[for_removal_ix, "order"] = "na_p95"
         genes.reset_index(inplace=True)
         genes.set_index("acc", inplace=True)
         # Order columns
+        genes = genes[["species", "chromosome", "cluster", "start",
+                       "end","strand","order"]]
         genes.columns = ["species", "chromosome", "cluster", "start", "end",
                          "strand", "order"]
         genes.reset_index(inplace=True)
@@ -487,6 +494,11 @@ if __name__ == "__main__":
                         action="store",
                         default=None,
                         help="run analyses with all the sequences in a directory")
+    parser.add_argument("--chrom_only", "-C",
+                        action="store_true",
+                        help="Use samples only from the chromosome where the \
+                        cluster candidate is found")
+
 
     # Check if hmmerscan is installed. Since this is not required for defining the analysis, it is executed before
     # the class definition
