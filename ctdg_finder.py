@@ -286,7 +286,7 @@ def parallel_meanshift(hmm_df, cpu):
     return pd.concat(ms)
 
 
-def sample_region(sample_chrom, record, chromosomes, genes, db):
+def sample_region(sample_chrom, record, genes, db):
     """
     Returns a tuple with chromosome, start and end
     :param record: list of records. species should be in position 1, chromosome in position 2, length
@@ -299,7 +299,7 @@ def sample_region(sample_chrom, record, chromosomes, genes, db):
     # Select from chromosomes at least the same size of the cluster
     # Get sample list of chromosomes
     # sample_chrom = np.random.choice(chromosomes.chromosome.values)
-    sample_chrom_length = chromosomes.loc[chromosomes["chromosome"] == sample_chrom, "length"].values[0]
+    sample_chrom, sample_chrom_length = sample_chrom
     acceptable_chrom_sample = sample_chrom_length - length
     # If the region to be sampled is larger than the chromosome
     # being sampled, sample in the entire chromosome
@@ -348,8 +348,10 @@ def sample_record(record, ctdg_obj):
     else:
         sample_chroms = np.random.choice(genomes.chromosome, samples)
     genes = genes.loc[genes["species"] == sp]
+    chrom_lens = genomes.set_index("chromosome")["length"].to_dict()
+    sample_chroms = [(x, chrom_lens[x]) for x in sample_chroms]
     fill_sample_fx = partial(sample_region, record=record,
-                             chromosomes=genomes, genes=genes, db=db)
+                             genes=genes, db=db)
 
     # Try with ProcessPoolExecutor
     with futures.ProcessPoolExecutor(ctdg_obj.cpu) as pool:
