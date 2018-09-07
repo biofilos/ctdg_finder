@@ -286,7 +286,7 @@ def parallel_meanshift(hmm_df, cpu):
     return pd.concat(ms)
 
 
-def sample_region(sample_chrom, record, genes, db):
+def sample_region(sample_chrom_matrix, record, genes, db):
     """
     Returns a tuple with chromosome, start and end
     :param record: list of records. species should be in position 1, chromosome in position 2, length
@@ -299,7 +299,7 @@ def sample_region(sample_chrom, record, genes, db):
     # Select from chromosomes at least the same size of the cluster
     # Get sample list of chromosomes
     # sample_chrom = np.random.choice(chromosomes.chromosome.values)
-    sample_chrom, sample_chrom_length = sample_chrom
+    sample_chrom, sample_chrom_length,chrom_df = sample_chrom_matrix
     acceptable_chrom_sample = sample_chrom_length - length
     # If the region to be sampled is larger than the chromosome
     # being sampled, sample in the entire chromosome
@@ -315,7 +315,7 @@ def sample_region(sample_chrom, record, genes, db):
                              (genes["end"] > sample_start)].index
     # json_path = "{}/hmmers/{}_{}.json".format(db, sp, sample_chrom)
     # chrom_dict = json.load(open(json_path))
-    chrom_df = pd.read_csv("{}/matrices/{}_{}.csv".format(db, sp, sample_chrom), index_col=0)
+    #chrom_df = pd.read_csv("{}/matrices/{}_{}.csv".format(db, sp, sample_chrom), index_col=0)
     on_both = set(sample_genes).intersection(set(chrom_df.index))
     max_dups = chrom_df.loc[on_both, on_both].sum().max()
     if not max_dups:
@@ -349,7 +349,9 @@ def sample_record(record, ctdg_obj):
         sample_chroms = np.random.choice(genomes.chromosome, samples)
     genes = genes.loc[genes["species"] == sp]
     chrom_lens = genomes.set_index("chromosome")["length"].to_dict()
-    sample_chroms = [(x, chrom_lens[x]) for x in sample_chroms]
+    matrix_template = "{}/matrices/{}_{}.csv"
+    sample_chroms = [(x, chrom_lens[x],
+                      pd.read_csv(matrix_template.format(db, sp, x), index_col=0)) for x in sample_chroms]
     fill_sample_fx = partial(sample_region, record=record,
                              genes=genes, db=db)
 
