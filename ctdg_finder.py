@@ -350,8 +350,9 @@ def sample_record(record, ctdg_obj):
     genes = genes.loc[genes["species"] == sp]
     chrom_lens = genomes.set_index("chromosome")["length"].to_dict()
     matrix_template = "{}/matrices/{}_{}.csv"
-    sample_chroms = [(x, chrom_lens[x],
-                      pd.read_csv(matrix_template.format(db, sp, x), index_col=0)) for x in sample_chroms]
+    sample_chroms = ((x, chrom_lens[x],
+                      pd.read_csv(matrix_template.format(db, sp, x),
+                                  index_col=0)) for x in sample_chroms)
     fill_sample_fx = partial(sample_region, record=record,
                              genes=genes, db=db)
 
