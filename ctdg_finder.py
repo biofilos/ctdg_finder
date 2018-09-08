@@ -209,9 +209,10 @@ class CtdgRun:
                                              (self.genomes["chromosome"] == chrom),
                                              "bandwidth"].values[0]
                 # return []
-                selected.loc[sp_chroms[(sp, chrom)], "bandwidth"] = bandwidth
-                selected.loc[sp_chroms[(sp, chrom)], "cluster"] = "{}_{}".format(self.name, chrom)
-                selected_list.append(selected.loc[sp_chroms[(sp, chrom)]])
+                sp_chrom = (sp, chrom)
+                selected.loc[sp_chroms[sp_chrom], "bandwidth"] = bandwidth
+                selected.loc[sp_chroms[sp_chrom], "cluster"] = "{}_{}".format(self.name, chrom)
+                selected_list.append(selected.loc[sp_chroms[sp_chrom]])
             except IndexError:
                 pass
                 print(sp, chrom)
@@ -223,7 +224,7 @@ class CtdgRun:
         starts = groups.min()["start"]
         ends = groups.max()["end"]
         dups = groups.count()["start"]
-        numbers_df = pd.concat([dups, starts, ends], 1)
+        numbers_df = pd.concat((dups, starts, ends), 1)
         numbers_df.columns = ["gene_duplicates", "start", "end"]
         numbers_df = numbers_df.loc[numbers_df["gene_duplicates"] > 1]
         numbers_df["length"] = numbers_df["end"] - numbers_df["start"]
