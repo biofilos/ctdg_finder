@@ -6,446 +6,417 @@ import tarfile
 from concurrent import futures
 from functools import partial
 from glob import glob
-
+from collections import Counter
 import numpy as np
 import pandas as pd
 from sklearn.cluster import MeanShift
-
 pd.options.mode.chained_assignment = None
 
-# Define class CTDG
+# Define class 
+
+def set_db(args):
+    arg_dic = dict(sp=args.sp,
+                   samples=args.hmmer_samples,
+                   db=args.db,
+                   out=args.out_dir,
+                   genes_f=args.db + "/genes_parsed.csv",
+                   chrom_d_f=args.db + "/chromosomes.json",
+                   name=args.name_family,
+                   ref_seq=args.ref_seq,
+                   ref_pfam=args.ref_pfam,
+                   cpu=args.cpu,
+                   chrom_only=args.chrom_only)
+    return arg_dic
 
 
-class CtdgConfig:
-    def __init__(self, out_dir, db, hmmer_samples, sp):
-        self.sp = sp
-        self.hmmer_samples = hmmer_samples
-        self.db = db
-        self.out_dir = out_dir.strip('/')
-        self.genome_file = "{}/chromosomes.csv".format(db)
-        self.all_genes_file = "{}/genes_parsed.csv".format(db)
-        # self.all_genes_fasta = "{}/all_seqs.fa".format(db)
-        self.genomes = None
-        self.all_genes = None
-        self.hmmer_rows = None
-        self.ms_result = None
-        self.family_numbers_list = None
-        # self.chrom_wide = []
-        self.genome_wide = []
+def check_arguments(args):
+    """
+    Perform assertion statements to check if all the files needed
+    for the analysis are present
+    :return: None
+    """
+    # Check that the directory with the database exists
+    assert os.path.exists(args["db"]), "directory {} with database does not exist".format(args["db"])
+    #db_path = '{}/pfam/pfam.hmm'.format(self.db)
+    db_path = '{}/panther/panther.hmm'.format(args["db"])
+    # Check that the blast database files exists
+    hmmer_files = sum([os.path.exists(db_path + x) for x in ['', '.h3f', '.h3i', '.h3m', '.h3p']])
+    assert hmmer_files == 5, "Some of the HMMer database files with prefix pfam do not exist"
+    # Check that the chromosomes information table exists
+    assert os.path.exists(args["chrom_d_f"]), "Chromosome information file" + \
+                                             "{}/chromosomes.json does not exist".format(args["db"])
+    # Check that the annotation table exists
+    assert os.path.exists(args["genes_f"]), "Annotation file" + \
+                                             "{}/genes_parsed.csv does not exist".format(args["db"])
 
-    def check_arguments(self):
-        """
-        Perform assertion statements to check if all the files needed
-        for the analysis are present
-        :return: None
-        """
-        # Check that the directory with the database exists
-        assert os.path.exists(self.db), "directory {} with database does not exist".format(self.db)
-        #db_path = '{}/pfam/pfam.hmm'.format(self.db)
-        db_path = '{}/panther/panther.hmm'.format(self.db)
-        # Check that the blast database files exists
-        hmmer_files = sum([os.path.exists(db_path + x) for x in ['', '.h3f', '.h3i', '.h3m', '.h3p']])
-        assert hmmer_files == 5, "Some of the HMMer database files with prefix pfam do not exist"
-        # Check that the chromosomes information table exists
-        assert os.path.exists(self.genome_file), "Chromosome information file" + \
-                                                 "{}/chromosomes.csv does not exist".format(self.genome_file)
-        # Check that the annotation table exists
-        assert os.path.exists(self.genome_file), "Annotation file" + \
-                                                 "{}/genes_parsed.csv does not exist".format(self.genome_file)
-
-        # Check that number of blast samples has been set
-        assert self.hmmer_samples, "Number of Hmmer samples was not specified"
-        # Make sure that the output directory is not the directory where the database is or the directory where
-        # the CTDGFinder resides
-        banned_dirs = [os.getcwd(), self.db, '.']
-        assert self.out_dir not in banned_dirs, "output direcrory can't be the ctdgfinder directory" + \
+    # Check that number of blast samples has been set
+    assert args["samples"], "Number of Hmmer samples was not specified"
+    # Make sure that the output directory is not the directory where the database is or the directory    # the CTDGFinder resides
+    banned_dirs = [os.getcwd(), args["db"], '.']
+    assert args["out"] not in banned_dirs, "output direcrory can't be the ctdgfinder directory" + \
                                                 " or the directory where the ctdg database is stored"
 
-    def init_tables(self):
-        """
-        Initialize genome and gene annotation tables
-        :return: None
-        """
-        genomes = pd.read_csv(self.genome_file)
-        genomes.dropna(inplace=True)
-        genomes.loc[:, 'chromosome'] = genomes['chromosome'].astype(str)
-        genomes.sort_index(inplace=True)
-        all_genes = pd.read_csv(self.all_genes_file, index_col=0)
-        all_genes.loc[:, 'chromosome'] = all_genes['chromosome'].astype(str)
-        all_genes.sort_index(inplace=True)
-        if "acc" in all_genes.columns:
-            all_genes.set_index('acc', inplace=True)
-        # clean columns
-        for i in all_genes.columns:
-            if "Unnamed" in i:
-                del all_genes[i]
-        # self.all_genes = self.all_genes.loc[~(self.all_genes['chromosome'].isnull()) &
-        #                                     (self.all_genes['chromosome'] != "NA")]
+def genes_chroms(genes_f, chrom_d_f):
+    gene_tab = pd.read_csv(genes_f)
+    gene_tab.set_index("acc", inplace=True)
+    gene_tab.loc[:, "chromosome"] = gene_tab["chromosome"].astype(str)
 
-        # Filter species subset if necessary
-        if self.sp:
-            all_genes = all_genes.loc[all_genes["species"].isin(self.sp)]
-            genomes = genomes.loc[genomes["species"].isin(self.sp)]
-        self.genomes = genomes
-        self.all_genes = all_genes
+    chrom_d = json.load(open(chrom_d_f))
+    return (gene_tab, chrom_d)
 
 
-class CtdgRun:
-    def __init__(self, ctdg, args):
-        # From config tables
-        self.genes = ctdg.all_genes
-        self.genomes = ctdg.genomes
-        self.out = ctdg.out_dir
-        self.samples = ctdg.hmmer_samples
-        # From arguments
-        self.cpu = args.cpu
-        self.ref_seq = args.ref_seq
-        self.ref_pfam = args.ref_pfam
-        self.name = args.name_family
-        self.db = args.db
-        self.selected = None
-        self.chrom_only = args.chrom_only
-    def create_folders(self):
-        """
-        Create the directories where all the
-        results will be saved
-        """
-        if not os.path.exists(self.name):
-            os.makedirs(self.name)
-            folders = ['intermediates', 'report']
-            for sub_dir in folders:
-                target = self.name + '/' + sub_dir
-                if not os.path.exists(target):
-                    os.makedirs(target)
-        print("Directory tree for {} was created.".format(self.name))
-
-    def remove_if_unfinished(self):
-        """
-        Remove unfinished analysis
-        :return: None
-        """
-        # Do not run analysis if final output is present
-        assert not os.path.exists("{}/{}".format(self.out, self.name)), "Results for {} exist.".format(self.name)
-
-        if os.path.exists(self.name):
-            print("Partial results for {} were found, removing them".format(self.name))
-            shutil.rmtree(self.name)
-
-    def strict_hmmer(self, hmmer_out, threshold):
-        """
-        filter out hmmer with less mutual coverare specified by the threshold argument
-        :param threshold: proportion of sequence length (in query and subject) to be used as filter
-        :param hmmer_out: output (.dom) of hmmerscan
-        :return: hmmer accessions that passed the threshold
-        """
-        pfam_filtered_fn = hmmer_out.replace("_dom", "_filtered_dom")
-        pfam_filtered = open(pfam_filtered_fn, "w")
-        pfams = []
-        for line in open(hmmer_out):
-            # Skip comment lines
-            if not line.startswith("#"):
-                # Process each line
-                data_line = [x for x in line.split(' ') if x != ""]
-                acc = data_line[0].split("|")[0]
-                seq = acc
-                pfam = data_line[3]
-                # Include entries with a minimum coverage
-                # in both the hmm and the query of 30%
-                hmm_start = int(data_line[15])
-                hmm_end = int(data_line[16])
-                hmm_aln_len = hmm_end - hmm_start
-                hmm_len = int(data_line[5])
-                hmm_coverage = hmm_aln_len / hmm_len
-
-                q_len = int(data_line[2])
-                q_end = int(data_line[20])
-                q_start = int(data_line[19])
-                q_aln_len = q_end - q_start
-                query_coverage = q_aln_len / q_len
-                if query_coverage >= threshold and hmm_coverage >= threshold:
-                    pfam_filtered.write(",".join(data_line))
-                    pfams.append(pfam)
-        pfam_filtered.close()
-        return pfams
-
-    def hmmscan(self, evalue=1e-3):
-        out_file = "{0}/intermediates/{0}.pre_hmmer".format(self.name)
-        dom_out = out_file + "_dom"
-        long_out = out_file + "_long"
-        # pfam_hmm = self.db + "/pfam/pfam.hmm"
-        pfam_hmm = self.db + "/panther/panther.hmm"
-        if self.ref_seq and not self.ref_pfam:
-            print("Running HMMscan")
-            cmd = "hmmsearch -o {} --tblout {} --domtblout {} -E {} --cpu {} {} {}".format(long_out, out_file,
-                                                                                         dom_out,
-                                                                                         evalue, self.cpu,
-                                                                                         pfam_hmm, self.ref_seq)
-            # Run HMMerScan
-            os.system(cmd)
-
-            # Parse the Pfam accessions found
-            pfams = self.strict_hmmer(dom_out, 0.3)
-        else:
-            pfams = [self.ref_pfam]
-        # Load Pfam Dictionary
-        pfam_dict = json.load(open("{}/hmmer/pfam.json".format(self.db)))
-        # Filter gene table with the genes that contain the Pfam domains found by HMMscan
-        pfam_genes = []
-        for pfam in pfams:
-            if pfam in pfam_dict:
-                pfam_genes += pfam_dict[pfam]
-        # Remove duplicates
-        pfam_selected = set(pfam_genes)
-        # Subset table
-        selected = self.genes.loc[pfam_selected.intersection(set(self.genes.index.values))]
-        # if len(selected) == 0:
-        #     print(pfam_selected)
-        # Save clusters in list, so that they can be processed in parallel
-        selected_list = []
-        sp_chroms = selected.groupby(["species", "chromosome"]).groups
-        for sp, chrom in sp_chroms:
-            try:
-                bandwidth = self.genomes.loc[(self.genomes["species"] == sp) &
-                                             (self.genomes["chromosome"] == chrom),
-                                             "bandwidth"].values[0]
-                # return []
-                sp_chrom = (sp, chrom)
-                selected.loc[sp_chroms[sp_chrom], "bandwidth"] = bandwidth
-                selected.loc[sp_chroms[sp_chrom], "cluster"] = "{}_{}".format(self.name, chrom)
-                selected_list.append(selected.loc[sp_chroms[sp_chrom]])
-            except IndexError:
-                pass
-                print(sp, chrom)
-        return selected_list
-
-    @property
-    def numbers(self):
-        groups = self.selected.groupby(["species", "chromosome", "cluster"])
-        starts = groups.min()["start"]
-        ends = groups.max()["end"]
-        dups = groups.count()["start"]
-        numbers_df = pd.concat((dups, starts, ends), 1)
-        numbers_df.columns = ["gene_duplicates", "start", "end"]
-        numbers_df = numbers_df.loc[numbers_df["gene_duplicates"] > 1]
-        numbers_df["length"] = numbers_df["end"] - numbers_df["start"]
-        numbers_df.reset_index(inplace=True)
-        return numbers_df
-
-
-def meanshift(sp_table):
+def create_folders(name):
     """
-    Performs meanshift clustering on the start coordinates of a table
-    Importantly, all the genes in the input are considered to be on the same chromosome
-    :param sp_table: pd.DataFrame of gene coordinates and bandwidth parameter
-    for that chromosome
-    :return: annotated table
+    Create the directories where all the
+    results will be saved
     """
-    # Order genes by start coordinate
-    sp_table.sort_values("start", inplace=True)
-    bandwidth = sp_table["bandwidth"].values[0]
-    if bandwidth == 0:
-        bandwidth = 1
-    # If there is only one gene, it is single copy in the chromosome
-    if type(sp_table) == pd.Series or sp_table.shape[0] == 1:
-        sp_table.loc[:, "cluster"] = 0
-        sp_table.loc[:, "order"] = 0
+    if not os.path.exists(name):
+        os.makedirs(name)
+        folders = ['intermediates', 'report']
+        for sub_dir in folders:
+            target = name + '/' + sub_dir
+            if not os.path.exists(target):
+                os.makedirs(target)
+    print("Directory tree for {} was created.".format(name))
+
+def remove_if_unfinished(out, name):
+    """
+    Remove unfinished analysis
+    :return: None
+    """
+    # Do not run analysis if final output is present
+    assert not os.path.exists("{}/{}".format(out, name)), "Results for {} exist.".format(name)
+
+    if os.path.exists(name):
+        print("Partial results for {} were found, removing them".format(name))
+        shutil.rmtree(name)
+
+def strict_hmmer(hmmer_out, threshold):
+    """
+    filter out hmmer with less mutual coverare specified by the threshold argument
+    :param threshold: proportion of sequence length (in query and subject) to be used as filter
+    :param hmmer_out: output (.dom) of hmmerscan
+    :return: hmmer accessions that passed the threshold
+    """
+    pfam_filtered_fn = hmmer_out.replace("_dom", "_filtered_dom")
+    pfam_filtered = open(pfam_filtered_fn, "w")
+    pfams = []
+    for line in open(hmmer_out):
+        # Skip comment lines
+        if not line.startswith("#"):
+            # Process each line
+            data_line = [x for x in line.split(' ') if x != ""]
+            acc = data_line[0].split("|")[0]
+            pfam = data_line[3]
+            # Include entries with a minimum coverage
+            # in both the hmm and the query of 30%
+            hmm_start = int(data_line[15])
+            hmm_end = int(data_line[16])
+            hmm_aln_len = hmm_end - hmm_start
+            hmm_len = int(data_line[5])
+            hmm_coverage = hmm_aln_len / hmm_len
+
+            q_len = int(data_line[2])
+            q_end = int(data_line[20])
+            q_start = int(data_line[19])
+            q_aln_len = q_end - q_start
+            query_coverage = q_aln_len / q_len
+            if query_coverage >= threshold and hmm_coverage >= threshold:
+                pfam_filtered.write(",".join(data_line))
+                pfams.append(pfam)
+    pfam_filtered.close()
+    return pfams
+
+def hmmscan(args, evalue=1e-3):
+    name = args["name"]
+    ref_pfam = args["ref_pfam"]
+    ref_seq = args["ref_seq"]
+    db = args["db"]
+    cpu = args["cpu"]
+    out_file = "{0}/intermediates/{0}.pre_hmmer".format(name)
+    dom_out = out_file + "_dom"
+    long_out = out_file + "_long"
+    # pfam_hmm = self.db + "/pfam/pfam.hmm"
+    pfam_hmm = db + "/panther/panther.hmm"
+    if ref_seq and not ref_pfam:
+        print("Running HMMscan")
+        cmd = "hmmsearch -o {} --tblout {} --domtblout {} -E {} --cpu {} {} {}".format(long_out, out_file, dom_out, evalue, cpu, pfam_hmm, ref_seq)
+        # Run HMMerScan
+        os.system(cmd)
+
+        # Parse the Pfam accessions found
+        pfams = strict_hmmer(dom_out, 0.3)
     else:
-        gene_starts = np.array([(x, y) for x, y in zip(sp_table.start.values.astype(int),
-                                                       np.zeros(len(sp_table)))])
-        mean_shift = MeanShift(bandwidth=bandwidth)
-        try:
-            mean_shift.fit(gene_starts)
-        except ValueError:
-            print("BW: {}".format(bandwidth))
-        labels = mean_shift.labels_
-        # Label clusters
-        sp_table.loc[:, "cluster"] = sp_table["cluster"] + ["_{}".format(x) for x in labels]
-        # Set the order of each gene in the cluster
-        cluster_groups = sp_table.groupby("cluster").groups
-        for cluster in cluster_groups:
-            # Get indices of the genes in a cluster
-            cluster_ix = cluster_groups[cluster]
-            genes_per_cluster = len(cluster_ix)
-            if genes_per_cluster == 1:
-                elements = ["na_ms"]
+        pfams = [ref_pfam]
+    # Load Pfam Dictionary
+    pfam_dict = json.load(open("{}/hmmer/pfam.json".format(db)))
+    # Filter gene table with the genes that contain the Pfam domains found by HMMscan
+    pfam_genes = []
+    for pfam in pfams:
+        if pfam in pfam_dict:
+            pfam_genes += pfam_dict[pfam]
+    # Remove duplicates
+    pfam_selected = set(pfam_genes)
+    num_candidates = len(pfam_selected)
+    genes_f = open(args["genes_f"])
+    columns = next(genes_f).strip().split(",")
+    # Check that columns are in the right order
+    msg = """
+    Check that columns are in this order:
+        acc, species, chromosome, start, end, strand
+    """
+    assert columns == ["acc", "species", "chromosome", "start", "end",
+                       "strand"], msg
+    genes_dict = dict()
+    candidates = 0
+    for gene in genes_f:
+        acc, species, chromosome, start, end, strand = gene.split(",")
+        bandwidth = chrom_d[species][chromosome][1]
+        if acc in pfam_selected:
+            # fields:
+            # acc, start, end, cluster, order
+            gene_coords = [acc, int(start), int(end), 0, 0]
+            if species not in genes_dict:
+                genes_dict[species] = {chromosome: [bandwidth,
+                                                    [gene_coords]]}
+            elif chromosome not in genes_dict[species]:
+                    genes_dict[species][chromosome] = [bandwidth,
+                                                       [gene_coords]]
             else:
-                elements = list(range(1, genes_per_cluster + 1))
-            sp_table.loc[cluster_ix, "order"] = elements
-    del sp_table["bandwidth"]
-    return sp_table
+                genes_dict[species][chromosome][1].append(gene_coords)
+            candidates += 1
+            pfam_selected.remove(acc)
+        if candidates == num_candidates:
+            break
+    return genes_dict
 
 
-def parallel_meanshift(hmm_df, cpu):
+def setup_meanshift(sp_dictionary, name):
     """
-    Run the MeanShift step in parallel
-    :param hmm_df: parsed hmmscan table
-    :param cpu: number of CPUs to use
-    :return: hmmscan table with annotated cluster candidates
+    Parses dictionary of the form 
+    {sp[chrom]:[bandwidth,[acc,start,end,cluster,order]]
+    and run MeanShift on each one 
     """
-    with futures.ProcessPoolExecutor(cpu) as pool:
-        ms = pool.map(meanshift, hmm_df)
-    return pd.concat(ms)
+    for sp in sp_dictionary:
+        for chrom in sp_dictionary[sp]:
+            bw, genes = sp_dictionary[sp][chrom]
+            # Sort genes by their start coordinate
+            genes = sorted(genes, key=lambda x: x[1])
+            # Process chromosomes with more than 1
+            # gene from the target gene family
+            if len(genes) > 1:
+                ms_annotated = meanshift(genes, bw)
+                counts = Counter(ms_annotated[1])
+                # Flag cluster candidates for removal if they
+                # only have one gene
+                ms_remove = [x for x in counts if counts[x] == 1]
+                order = 1
+                past_cl = ""
+                n_genes = len(ms_annotated[0])
+                annotated = [0] * n_genes
+                count = 0
+                for gene, label in zip(*ms_annotated):
+                    cl_name = "{}_{}_{}".format(name, chrom,
+                                                str(label + 1))
+                    # If new cluster, reset coordinates
+                    if cl_name != past_cl:
+                        order = 1
+                        past_cl = cl_name
+                    # Flag genes outside cluster candidates
+                    # at the meanshift step
+                    if label in ms_remove:
+                        cl_name = "na_ms"
+                        order = 0
+                    gene[3] = cl_name
+                    gene[4] = order
+                    order += 1
+                    annotated[count] = gene
+                    count += 1
+            else:
+                annotated = genes
+            sp_dictionary[sp][chrom] = annotated
+    return sp_dictionary
 
-
-def sample_region(sample_chrom_matrix, record, genes, db):
+def meanshift(gene_coords, bandwidth):
     """
-    Returns a tuple with chromosome, start and end
-    :param record: list of records. species should be in position 1, chromosome in position 2, length
-    in position 7
-    :param genomes: Genomes annotation dataframe
-    :return: tuple
+    Run meanshift for a list of gene coordinates (start, end)
     """
-    sp = record[1]
-    length = record[7]
-    # Select from chromosomes at least the same size of the cluster
-    # Get sample list of chromosomes
-    # sample_chrom = np.random.choice(chromosomes.chromosome.values)
-    sample_chrom, sample_chrom_length,chrom_df = sample_chrom_matrix
-    acceptable_chrom_sample = sample_chrom_length - length
-    # If the region to be sampled is larger than the chromosome
-    # being sampled, sample in the entire chromosome
-    if acceptable_chrom_sample <= 1:
-        sample_start = 1
-        sample_end = sample_chrom_length
-    else:
-        sample_start = np.random.randint(1, acceptable_chrom_sample)
-        sample_end = sample_start + length
-
-    sample_genes = genes.loc[(genes["chromosome"] == sample_chrom) &
-                             (genes["start"] < sample_end) &
-                             (genes["end"] > sample_start)].index
-    # json_path = "{}/hmmers/{}_{}.json".format(db, sp, sample_chrom)
-    # chrom_dict = json.load(open(json_path))
-    #chrom_df = pd.read_csv("{}/matrices/{}_{}.csv".format(db, sp, sample_chrom), index_col=0)
-    on_both = set(sample_genes).intersection(set(chrom_df.index))
-    max_dups = chrom_df.loc[on_both, on_both].sum().max()
-    if not max_dups:
-        max_dups = 0
-    return max_dups
+    starts = [x[1] for x in gene_coords]
+    gene_starts = np.array([(x, y) for x, y in zip(starts,
+                                                   np.zeros(len(starts)))])
+    mean_shift = MeanShift(bandwidth=bandwidth)
+    try:
+        mean_shift.fit(gene_starts)
+    except ValueError:
+        print("BW: {}".format(bandwidth))
+    labels = mean_shift.labels_
+    return (gene_coords, labels)
 
 
-def sample_record(record, ctdg_obj):
+def build_numbers(ms_annotation):
     """
-    Calculates the sample distribution of duplicates for one record and returns the percentile 95
-    :param record: tuple, where position 1: species, position 3: cluster, position 7: length of cluster, and
-    position 8: the path to the chromosome JSON file
-    :param ctdg-obj: CTDG object containing genes annotation, genome annotation, and db path
-    :return: dictionary of the form: {(species,cluster): percentile 95
+    Compile data for stats sampling (numbers table)
     """
-    genes = ctdg_obj.genes
-    genomes = ctdg_obj.genomes
-    samples = ctdg_obj.samples
-    db = ctdg_obj.db
-    sp = record[1]
-    # chrom = record[2]
-    cluster = record[3]
-    length = record[7]
-    genomes = genomes.loc[(genomes["species"] == sp) &
-                          (genomes["length"] >= length)]
-    # Get array of chromosomes to sample
-    # If sampling only on one chromosome
-    if ctdg_obj.chrom_only:
-        sample_chroms = [record[2]] * samples
-    else:
-        sample_chroms = np.random.choice(genomes.chromosome, samples)
-    genes = genes.loc[genes["species"] == sp]
-    chrom_lens = genomes.set_index("chromosome")["length"].to_dict()
-    matrix_template = "{}/matrices/{}_{}.csv"
-    sample_chroms = ((x, chrom_lens[x],
-                      pd.read_csv(matrix_template.format(db, sp, x),
-                                  index_col=0)) for x in sample_chroms)
-    fill_sample_fx = partial(sample_region, record=record,
-                             genes=genes, db=db)
-
-    # Try with ProcessPoolExecutor
-    with futures.ProcessPoolExecutor(ctdg_obj.cpu) as pool:
-        max_dups = pool.map(fill_sample_fx, sample_chroms)
-    max_dups_a = pd.np.array(list(max_dups))
-    # Fill nan with 0. This might happen if there were no genes in a sample
-    max_dups_a[pd.np.isnan(max_dups_a)] = 0
-    # Hits with one "duplicate" is against itself
-    # max_dups_a[max_dups_a == 1] = 0
-    percentile_95 = np.round(np.percentile(max_dups_a, 95), 4)
-    return sp, cluster, percentile_95
+    # Initialize numbers dictionary
+    #numbers_dict = {sp: {} for sp in ms_annotation.keys()}
+    numbers_lst = []
+    for sp in ms_annotation:
+        for chrom in ms_annotation[sp]:
+            c_data = ms_annotation[sp][chrom]
+            #if len(chrom_data) > 1:
+            # Initialize data structure
+            clusters = {x[3]: [] for x in c_data}
+            if len(clusters) > 1:
+                #if chrom not in numbers_dict[sp]:
+                #    numbers_dict[sp][chrom] = {}
+                for cluster in clusters:
+                    min_coord = min([x[1] for x in c_data if cluster in x[3]])
+                    max_coord = max([x[2] for x in c_data if cluster in x[3]])
+                    num_dupli = len([x for x in c_data if cluster in x[3]])
+                    numbers_lst.append([sp, chrom, cluster, min_coord,
+                                                        max_coord,
+                                                        num_dupli,
+                                                        # Reserve for P95
+                                                        0])
+    numbers_lst.sort(key=lambda x: x[0])
+    return numbers_lst
 
 
-def sample_table(ctdg_obj):
-    """
-    Annotate the cluster candidate summary table with the percentile 95 column
-    :param numbers: cluster candidate table
-    :param ctdg_obj: CTDG object
-    :return: annotated table
-    """
-    numbers = ctdg_obj.numbers
-    num_clusters = numbers.shape[0]
-    if not num_clusters:
-        return None
-    print("Analyzing {} cluster candidates".format(num_clusters))
 
-    longest_sp = max([len(x) for x in numbers.species.unique()]) + 2
-    longest_cluster = max([len(x) for x in numbers.cluster.unique()]) + 2
+
+
+def build_df(numbers, genes, name):
+    n_df = pd.DataFrame(numbers)
+    # Linearize genes
+    linear_genes = []
+    for sp, chrom_data in genes.items():
+        for chrom_name, genes_data in chrom_data.items():
+            for gene in genes_data:
+                linear_genes.append([sp, chrom_name] + gene)
+    g_df = pd.DataFrame(linear_genes)
+
+    # Set column names
+    n_df.columns = ("species", "chromosome", "cluster", "start",
+                    "end", "duplicates", "P95")
+
+    g_df.columns = ("species", "chromosome", "acc", "start",
+                    "end", "cluster", "order")
+    # Get accessions that did not pass the percentile threshold
+    for_removal = n_df["duplicates"] < n_df["P95"]
+    na_95_tag = "na_95"
+    for sp, ch, cl, *rst in n_df.loc[for_removal].set_index("species").to_records():
+        g_df.loc[(g_df["species"] == sp) &
+                 (g_df["cluster"] == cl), "cluster"] = na_95_tag
+    n_df.loc[for_removal, "cluster"] = na_95_tag
+    # Save tables
+    discarded = ["0", "na_95", "na_ms", 0]
+
+    n_file = "{0}/report/{0}_numbers.csv".format(name)
+    g_file = n_file.replace("numbers", "genes")
+    n_clean_file = n_file.replace("numbers", "numbers_clean")
+    g_clean_file = n_clean_file.replace("numbers", "genes")
+
+    n_df.to_csv(n_file)
+    n_df.loc[~(n_df["cluster"].isin(discarded))].to_csv(n_clean_file)
+
+    g_df.to_csv(g_file)
+    g_df.loc[~(g_df["cluster"].isin(discarded))].to_csv(g_clean_file)
+
+
+
+def get_p95(numbers, args, chrom_d, genes):
+    cpu = args["cpu"]
+    longest_sp = max([len(x[0]) for x in numbers])
+    longest_cl = max([len(x[2]) for x in numbers])
+    len_data = sum([1 for x in numbers if x[2] != "na_ms"])
+    longest_sp += 2
+    longest_cl += 2
+    print("Sampling {} cluster candidates".format(len_data))
     print_msg = "{:<{sp}} {:<{cluster}} {:<10} {}{}"
     print(print_msg.format("Species", "Cluster", "Duplicates", "P95", "",
-                           sp=longest_sp, cluster=longest_cluster))
-    for record in numbers.to_records():
-        sp, cluster, p95 = sample_record(record, ctdg_obj)
-        cluster_duplicates = record[4]
-        if cluster_duplicates >= p95:
-            msg = "*"
-        else:
-            msg = ""
-        print(print_msg.format(sp, cluster, cluster_duplicates, p95, msg,
-                               sp=longest_sp, cluster=longest_cluster))
-        numbers.loc[(numbers["species"] == sp) & (numbers["cluster"] == cluster), "p_95"] = p95
-    return numbers
+                           sp=longest_sp, cluster=longest_cl))
+    with futures.ProcessPoolExecutor(cpu) as pool:
+        new_numbers = [None] * len(numbers)
+        count = 0
+        for chrom_pack in pool.map(part_sample_chrom, numbers):
+            data = numbers[count]
+            if data[-2] >= data[-1]:
+                msg = "*"
+            else:
+                msg = ""
+            if not data[2] == "na_ms":
+                p95 = np.percentile(chrom_pack, 95)
+                data[-1] = p95.round(4)
+                print(print_msg.format(data[0], data[2], data[-2],
+                                       data[-1], msg, sp=longest_sp,
+                                       cluster=longest_cl))
+            new_numbers[count] = data
+            count += 1
+    return new_numbers
+
+def get_sample_genes(chrom, sp, length, genes_df, db):
+    sample_len = chrom_d[sp][chrom][0]
+    min_coord = 0
+    max_coord = sample_len - length
+    random_start = np.random.randint(min_coord, max_coord)
+    random_end = random_start + length
+    genes = set(genes_df.loc[(genes_df["species"] == sp) &
+                             (genes_df["chromosome"] == chrom) &
+                             (genes_df["start"] < random_end) &
+                             (genes_df["end"] > random_start)].index.values)
+    mat_file = "{}/matrices/{}_{}.csv".format(db, sp, chrom)
+    #return (pd.read_csv(mat_file,index_col=0), genes)
+    return (mat_file, genes)
+
+def get_max_dups(mat_genes):
+    mat_file, genes = mat_genes
+    #genes = genes_region(genes_df, sp, chrom, random_start, random_end)
+    if len(genes) <= 1:
+        max_dups = 0
+    else:
+        chrom_df = pd.read_csv(mat_file, index_col=0)
+        in_both = genes.intersection(set(chrom_df.index.values))
+        max_dups = chrom_df.loc[in_both, in_both].sum().max()
+        if max_dups > 0:
+            max_dups += 1
+        if max_dups is np.nan:
+            max_dups = 0
+    return max_dups
+
+def sample_chromosomes(cluster_data, samples, only_chrom, chrom_d, genes_df,
+                       db, cpu, percent=95):
+    sp, chromosome, cl_name, cl_start, cl_end, dups, p = cluster_data
+    if cl_name == "na_ms":
+        return cluster_data
+    length = cl_end - cl_start
+    # Only include chromosomes at least as long as the length of the sample
+    if only_chrom:
+        chromosomes = [chromosome] * samples
+    else:
+        chromosomes = tuple([x for x in chrom_d[sp] if
+                             chrom_d[sp][x][0] >= length])
+
+    chroms_samples = np.random.choice(chromosomes, samples)
+    chrom_pack = [None] * samples
+    chrom_pack = [get_max_dups(get_sample_genes(x, sp, length, genes_df, db)) for x in
+                  chroms_samples]
+    return chrom_pack
 
 
-def clean_p95(numbers):
-    """
-    Annotate genes in cluster candidates with less duplicates than
-    the percentile 95 sampling, and save data
-    :return:
-    """
-    if numbers.shape[0] > 0:
-        for_removal_df = numbers.loc[numbers["p_95"] > numbers["gene_duplicates"]]
-        # Clusters that did not pass the percentile 95 threshold
-        for_removal_ix = for_removal_df.set_index(["species", "chromosome", "cluster"]).index
-        genes = analysis.selected.reset_index().set_index(["species", "chromosome", "cluster"])
-        # Annotate genes in clusters under the percentile 95 threshold
-        if len(for_removal_ix) > 0:
-            genes.loc[for_removal_ix, "order"] = "na_p95"
-        genes.reset_index(inplace=True)
-        genes.set_index("acc", inplace=True)
-        # Order columns
-        genes = genes[["species", "chromosome", "cluster", "start",
-                       "end","strand","order"]]
-        genes.columns = ["species", "chromosome", "cluster", "start", "end",
-                         "strand", "order"]
-        genes.reset_index(inplace=True)
-        # Save genes data
-        genes_out_name = "{0}/report/{0}_genes.csv".format(analysis.name)
-        genes.to_csv(genes_out_name)
-        # Save only data of genes in clusters
-        genes_clean = genes.loc[~(genes["order"].isin(["na_p95", "na_ms", 0, "0"]))]
-        genes_clean.set_index("acc", inplace=True)
-        genes_clean.to_csv(genes_out_name.replace("genes", "genes_clean"))
-        # Save clusters summary information
 
-        numbers.set_index(["species", "chromosome", "cluster"], inplace=True)
-        # Order columns
-        numbers.columns = ["gene_duplicates", "start", "end", "length", "p_95"]
-        numbers_out = genes_out_name.replace("genes", "numbers")
-        numbers.to_csv(numbers_out)
-
-        # Save only clusters that passed the percentile 95 sampling
-        numbers_clean = numbers.loc[~(numbers.index.isin(for_removal_ix))]
-        numbers_clean.to_csv(numbers_out.replace("numbers", "numbers_clean"))
+def genes_region(genes_df, sp, chrom, start, end):
+    genes = set(genes_df.loc[(genes_df["species"] == sp) &
+                             (genes_df["chromosome"] == chrom) &
+                             (genes_df["start"] < end) &
+                             (genes_df["end"] > start)].index.values)
+    return genes
 
 
-def save_results(ctdg_object):
+
+def save_results(args):
     # Compress intermediates
-    out = ctdg_object.out
-    fam_name = ctdg_object.name
+    out = args["out"]
+    fam_name = args["name"]
     tar_name = "{}/intermediates/intermediates.tgz".format(fam_name)
     tar_file = tarfile.open(tar_name, "x:gz")
     for intermediate in glob("{0}/intermediates/{0}*".format(fam_name)):
@@ -458,84 +429,82 @@ def save_results(ctdg_object):
     shutil.move(fam_name, out_final)
 
 
-if __name__ == "__main__":
-    # Define arguments
-    parser = argparse.ArgumentParser("CTDG annotation pipeline")
-    parser.add_argument("--name_family", "-n",
-                        action='store',
-                        help="Name of the gene family")
+       # Load the genes that have belong to the identified gene families
+# Define arguments
+parser = argparse.ArgumentParser("CTDG annotation pipeline")
+parser.add_argument("--name_family", "-n",
+                    action='store',
+                    help="Name of the gene family")
 
-    parser.add_argument("--ref_seq", "-f",
-                        action='store',
-                        help="reference gene family sequence",
-                        default=None)
+parser.add_argument("--ref_seq", "-f",
+                    action='store',
+                    help="reference gene family sequence",
+                    default=None)
 
-    parser.add_argument("--ref_pfam", "-p",
-                        action="store",
-                        help="Reference Pfam Accession",
-                        default=None)
+parser.add_argument("--ref_pfam", "-p",
+                    action="store",
+                    help="Reference Pfam Accession",
+                    default=None)
 
-    parser.add_argument("--hmmer_samples", "-S",
-                        action="store",
-                        type=int,
-                        help="Number of samples to build empirical distribution of duplicates")
-    parser.add_argument("--sp", "-s",
-                        action="append",
-                        default=[],
-                        help="Species to run the analysis on (must be written in quotes)")
-    parser.add_argument("--out_dir", "-o",
-                        action="store",
-                        default='CTDG_out',
-                        help="Output directory")
-    parser.add_argument("--cpu", "-c",
-                        action="store",
-                        type=int,
-                        default=1,
-                        help="CPU to be used")
-    parser.add_argument("--db", "-d",
-                        action="store",
-                        help="Directory with gene annotation and HMMer database")
+parser.add_argument("--hmmer_samples", "-S",
+                    action="store",
+                    type=int,
+                    help="Number of samples to build empirical distribution of duplicates")
+parser.add_argument("--sp", "-s",
+                    action="append",
+                    default=[],
+                    help="Species to run the analysis on (must be written in quotes)")
+parser.add_argument("--out_dir", "-o",
+                    action="store",
+                    default='CTDG_out',
+                    help="Output directory")
+parser.add_argument("--cpu", "-c",
+                    action="store",
+                    type=int,
+                    default=1,
+                    help="CPU to be used")
+parser.add_argument("--db", "-d",
+                    action="store",
+                    help="Directory with gene annotation and HMMer database")
 
-    parser.add_argument("--dir", "-D",
-                        action="store",
-                        default=None,
-                        help="run analyses with all the sequences in a directory")
-    parser.add_argument("--chrom_only", "-C",
-                        action="store_true",
-                        help="Use samples only from the chromosome where the \
-                        cluster candidate is found")
+parser.add_argument("--dir", "-D",
+                    action="store",
+                    default=None,
+                    help="run analyses with all the sequences in a directory")
+parser.add_argument("--chrom_only", "-C",
+                    action="store_true",
+                    help="Use samples only from the chromosome where the \
+                    cluster candidate is found")
 
+# Check if hmmerscan is installed. Since this is not required for defining the analysis, it is executed before
+# the class definition
+hmmer_path = shutil.which('hmmscan')
+assert bool(hmmer_path), "HMMerScan is not installed or it is not in your PATH"
 
-    # Check if hmmerscan is installed. Since this is not required for defining the analysis, it is executed before
-    # the class definition
-    hmmer_path = shutil.which('hmmscan')
-    assert bool(hmmer_path), "HMMerScan is not installed or it is not in your PATH"
-
-    # Parse arguments
-    args = parser.parse_args()
-    ctdg_config = CtdgConfig(out_dir=args.out_dir, db=args.db,
-                             hmmer_samples=args.hmmer_samples, sp=args.sp)
-    ctdg_config.check_arguments()
-    ctdg_config.init_tables()
-    # Initialize analysis
-    analysis = CtdgRun(args=args, ctdg=ctdg_config)
-    # Remove directory structure if partial results are found
-    analysis.remove_if_unfinished()
-    # Create directory structure
-    analysis.create_folders()
-    # Run HMMscan and Meanshift step
-    hmmers = analysis.hmmscan()
-
-    if hmmers:
-        analysis.selected = parallel_meanshift(hmmers, args.cpu)
-        # Organize summary table for each cluster candidate
-        # pre_numbers = analysis.numbers.loc[:, ]
-        # Run sampling
-        numbers = sample_table(analysis)
-        # Clean tables and save CSVs
-        if type(numbers) == pd.DataFrame and numbers.shape[0] > 1:
-            clean_p95(numbers)
-    else:
-        print("No clusters were found")
-    save_results(analysis)
-    print("DONE")
+# Parse arguments
+args = parser.parse_args()
+data = set_db(args)
+check_arguments(data)
+remove_if_unfinished(data["out"], data["name"])
+# Set reference data
+genes, chrom_d = genes_chroms(data["genes_f"], data["chrom_d_f"])
+create_folders(data["name"])
+# Identify gene families
+hmmers = hmmscan(data)
+# run MeanShift
+ms_annotation = setup_meanshift(hmmers, data["name"])
+# Summarize cluster candidates
+numbers = build_numbers(ms_annotation)
+part_sample_chrom = partial(sample_chromosomes, samples=data["samples"],
+                            only_chrom=data["chrom_only"],
+                            genes_df=genes,
+                            db=data["db"],
+                            cpu=data["cpu"],
+                            chrom_d=chrom_d)
+#with futures.ProcessPoolExecutor(data["cpu"]) as pool:
+#    chrom_samples = pool.map(part_sample_chrom, numbers)
+#l=list(chrom_samples)
+new_numbers = get_p95(numbers, data, chrom_d, genes)
+build_df(new_numbers, ms_annotation, data["name"])
+save_results(data)
+print("DONE")
