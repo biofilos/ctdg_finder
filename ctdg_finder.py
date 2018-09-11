@@ -495,16 +495,14 @@ hmmers = hmmscan(data)
 ms_annotation = setup_meanshift(hmmers, data["name"])
 # Summarize cluster candidates
 numbers = build_numbers(ms_annotation)
-part_sample_chrom = partial(sample_chromosomes, samples=data["samples"],
-                            only_chrom=data["chrom_only"],
-                            genes_df=genes,
-                            db=data["db"],
-                            cpu=data["cpu"],
-                            chrom_d=chrom_d)
-#with futures.ProcessPoolExecutor(data["cpu"]) as pool:
-#    chrom_samples = pool.map(part_sample_chrom, numbers)
-#l=list(chrom_samples)
-new_numbers = get_p95(numbers, data, chrom_d, genes)
-build_df(new_numbers, ms_annotation, data["name"])
+if numbers:
+    part_sample_chrom = partial(sample_chromosomes, samples=data["samples"],
+                                only_chrom=data["chrom_only"],
+                                genes_df=genes,
+                                db=data["db"],
+                                cpu=data["cpu"],
+                                chrom_d=chrom_d)
+    new_numbers = get_p95(numbers, data, chrom_d, genes)
+    build_df(new_numbers, ms_annotation, data["name"])
 save_results(data)
 print("DONE")
