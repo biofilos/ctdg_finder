@@ -341,12 +341,12 @@ def get_p95(numbers, args, chrom_d, genes):
         for chrom_pack in pool.map(part_sample_chrom, numbers):
             data = numbers[count]
             if not data[2] == "na_ms":
+                p95 = np.percentile(chrom_pack, 95)
+                data[-1] = p95.round(4)
                 if data[-2] >= data[-1]:
                     msg = "*"
                 else:
                     msg = ""
-                p95 = np.percentile(chrom_pack, 95)
-                data[-1] = p95.round(4)
                 print(print_msg.format(data[0], data[2], data[-2],
                                        data[-1], msg, sp=longest_sp,
                                        cluster=longest_cl))
