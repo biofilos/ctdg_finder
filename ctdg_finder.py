@@ -11,7 +11,7 @@ import numpy as np
 import pandas as pd
 from sklearn.cluster import MeanShift
 pd.options.mode.chained_assignment = None
-
+#import ipdb
 # Define class 
 
 def set_db(args):
@@ -232,6 +232,7 @@ def setup_meanshift(sp_dictionary, name):
                     order += 1
                     annotated[count] = gene
                     count += 1
+                    #ipdb.set_trace()
             else:
                 annotated = genes
             sp_dictionary[sp][chrom] = annotated
@@ -266,18 +267,20 @@ def build_numbers(ms_annotation):
             #if len(chrom_data) > 1:
             # Initialize data structure
             clusters = {x[3]: [] for x in c_data}
-            if len(clusters) > 1:
-                #if chrom not in numbers_dict[sp]:
-                #    numbers_dict[sp][chrom] = {}
+            #if chrom not in numbers_dict[sp]:
+            #    numbers_dict[sp][chrom] = {}
+            if len(c_data) > 1:
                 for cluster in clusters:
                     min_coord = min([x[1] for x in c_data if cluster in x[3]])
                     max_coord = max([x[2] for x in c_data if cluster in x[3]])
                     num_dupli = len([x for x in c_data if cluster in x[3]])
-                    numbers_lst.append([sp, chrom, cluster, min_coord,
+                    numbers_datum = [sp, chrom, cluster, min_coord,
                                                         max_coord,
                                                         num_dupli,
                                                         # Reserve for P95
-                                                        0])
+                                                        0]
+                    #if num_dupli > 1:
+                    numbers_lst.append(numbers_datum)
     numbers_lst.sort(key=lambda x: x[0])
     return numbers_lst
 
