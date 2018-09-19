@@ -360,6 +360,8 @@ def get_p95(numbers, args, chrom_d, genes):
 def get_sample_genes(chrom, sp, length, genes_df, db):
     sample_len = chrom_d[sp][chrom][0]
     min_coord = 0
+    # If the sample chromosome is shorter than the 
+    # sampled region, use the entire chromosome
     max_coord = sample_len - length
     random_start = np.random.randint(min_coord, max_coord)
     random_end = random_start + length
@@ -397,7 +399,7 @@ def sample_chromosomes(cluster_data, samples, only_chrom, chrom_d, genes_df,
         chromosomes = [chromosome] * samples
     else:
         chromosomes = tuple([x for x in chrom_d[sp] if
-                             chrom_d[sp][x][0] >= length])
+                             chrom_d[sp][x][0] > length])
 
     chroms_samples = np.random.choice(chromosomes, samples)
     chrom_pack = [None] * samples
