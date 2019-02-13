@@ -11,7 +11,6 @@ import numpy as np
 import pandas as pd
 from sklearn.cluster import MeanShift
 pd.options.mode.chained_assignment = None
-#import ipdb
 # Define class 
 
 def set_db(args):
@@ -171,7 +170,10 @@ def hmmscan(args, evalue=1e-3):
     candidates = 0
     for gene in genes_f:
         acc, species, chromosome, start, end, strand = gene.split(",")
-        bandwidth = chrom_d[species][chromosome][1]
+        try:
+            bandwidth = chrom_d[species][chromosome][1]
+        except KeyError:
+            print(species,chrom_d[species])
         if acc in pfam_selected:
             # fields:
             # acc, start, end, cluster, order
