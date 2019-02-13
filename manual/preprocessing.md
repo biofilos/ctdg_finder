@@ -5,7 +5,7 @@ CTDGFinder uses three basic annotation files to run, as well as to set-up the "h
 
 * `genes_parsed.csv`: Gene annotation with the following columns: acc (accession number, must be unique), species\*, chromosome\*, start, end, strand. \*: must match the information in the `chromosomes.csv` table.
 
-* `seqs_hmmer`: FASTA file containing protein sequences, sequence names, and associated information for all the genes in the `genes_parsed.csv`. The sequence header must have this form: `>accession|species|chromosome|start|end|strand`.
+* `seqs_hmmer`: FASTA file containing protein sequences, sequence names, and associated information for all the genes in the `genes_parsed.csv`. The sequence header must have this form: `>accession`, where the accession is consistent with the id in `genes_parsed.csv`.
 
 ## Database generation using HMMer
 
@@ -13,7 +13,9 @@ This version of CTDGFinder was modified to use HMMer instead of Blast. More rece
 A substantial HMMsearch run has to be performed only once to annotate the proteomes with their domains, gene families, orthology groups, etc present in the HMM database. However, this potential downside can be leveraged for large-scale analyses. If the user wants to identify all the CTDGs present in a set of proteomes, they won't have to run HMMscan for each protein, but used the precomputed HMMscan search by using the new parameter `-p` in CTDGFinder, which instead of using a sequence as a query (do not use the `-f` parameter in this case), it will use the HMM accession specified by `-p` as a query. Given that a large-scale analysis can include several thousand HMMscan searches, this significantly improves the runtime of CTDGFinder on those cases. A test case example will be provided.  
 
 ### Preprocessing steps
-All this steps are included in the script `extras/run_hmmer.sh`, but will be explained here in case they have to be tweaked by the used.  
+All this steps are included in the script `extras/run_hmmer.sh`, but will be explained here in case they have to be tweaked by the user.  
+If the user wants to use `run_hmmer.sh`, a sample "genome" (human chromosome 19 and 6) are included as a sample under the `sample_genome` directory, and contain the files necessary for all the preprocessing steps. A sample hmm and its associated files are also included. In order to run the preprocessing pipeline, run `run_hmmer.sh <db_dir> <n_cores>`. For example, if the user opens a terminal at the root directory of this repository, running `bash extras/run_hmmer.sh sample_genome 8` will generate the necessary files to run CTDGFinder.  
+In order to double check that the database is in order, running `python ctdg_finder.py -p MHC_I -d sample_genome -c 8 -n sample_run -S 1000` at the root directory of this repository, would successfully run CTDGFinder, and three CTDGs will be found in chromosome 6 (part of the MHC cluster).
 
 #### Note on intergenic distances and overlapping genes.  
 Since no `preprocessing.py` is going to be run, it is assumed that the genes are properly annotated. In the Blast version of `preprocessing.py`, overlapping genes were removed, to make sure no negative intergenic distances were called, and to reduce the chances of calling isoforms as genes. Although it is not very common, overlapping genes do exist in many species, and in this version, *no check for overlapping genes will be performed*. In case of encountering overlapping genes, the script `bandwith.py` will set its intergenic distance to zero.  
@@ -34,7 +36,7 @@ In order to avoid calculating it on each run, it can be calculated for all chrom
 #### Run HMMsearch  
 The gene family/orthologs source selected by the user (and properly formatted by using `hmmpress`) will be used as database, and a sequence file named seqs_hmmer.fa will be used as query. By default, the hmm file will be assumed to be stored as `ctdg_db/panther/panther.hmm` and `ctdg_db/seqs_hmmer.fa` where `ctdg_db` is the directory where all the annotation files are stored (chromosomes.csv, genes_parsed.csv, etc). The E-value used for the search is 0.0001. If the user wants to use a different E-value, it will have to be changed both in this step, as well as in the source code of CTDGFinder.  
 Notes on annotation files structure:
-* seqs_hmmer.fa has to have a header with the following format: >accession|species|chromosome|start|end|strand
+* seqs_hmmer.fa has to have a header with the following format: `>accession`
 * genes_parsed.csv requires the following columns: acc, species, chromosome, start, end, strand. acc is the accession of each gene, and should match the one in seqs_hmmer.fa
 #### Parse HMMsearch output  
 In this step, the HMMscan output will be parsed to generate a JSON dictionary containing each gene family as keys, and a list of all genes part of that gene family. **NOTE**: For my own research, I am using PantherDB, which is a gene family database. For that reason, I put an extra filter to the HMMscan results, so that only sequence hits covering 30% of both query and subject will be kept. If you use a domain-based database (e.g. Pfam), you might want to remove this constraint. Contact me if you want to do it in that way, because so far, this feature is hard-coded in CTDGFinder.
