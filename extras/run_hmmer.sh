@@ -27,5 +27,5 @@ echo Generating homology graphs
 python $script_dir/domains_net.py $db_dir/hmmer/pfam.json $db_dir/genes_parsed.csv $db_dir/graphs $cpus
 # Generate homology matrices
 echo Generating homology matrices
-python $script_dir/parse_matrices.py $db_dir/graphs matrices
+python $script_dir/parse_matrices.py $db_dir/graphs $db_dir/matrices
 
