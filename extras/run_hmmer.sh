@@ -15,7 +15,7 @@ echo Calculating bandwidth
 python $script_dir/bandwidth.py $db_dir $cpus
 # Run HMMsearch
 echo Running HMMeR
-hmmsearch --cpu $cpus --noali -E 0.0001 -o $db_dir/hmmer/all.hmmer --tblout $db_dir/hmmer/all.tbl --domtblout $db_dir/hmmer/all.dom panther/panther.hmm $db_dir/seqs_hmmer.fa
+hmmsearch --cpu $cpus --noali -E 0.0001 -o $db_dir/hmmer/all.hmmer --tblout $db_dir/hmmer/all.tbl --domtblout $db_dir/hmmer/all.dom $db_dir/panther/panther.hmm $db_dir/seqs_hmmer.fa
 # Parse hmmer output
 echo Parsing HMMeR output
 python $script_dir/parse_big_hmmer_strict.py $db_dir/hmmer/all.dom $db_dir/hmmer/pfam.json $db_dir/hmmer/hmmer_filtered.csv
