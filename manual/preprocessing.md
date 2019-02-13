@@ -14,7 +14,7 @@ A substantial HMMsearch run has to be performed only once to annotate the proteo
 
 ### Preprocessing steps
 All this steps are included in the script `extras/run_hmmer.sh`, but will be explained here in case they have to be tweaked by the user.  
-If the user wants to use `run_hmmer.sh`, a sample "genome" (human chromosome 19 and 6) are included as a sample under the `sample_genome` directory, and contain the files necessary for all the preprocessing steps. A sample hmm and its associated files are also included. In order to run the preprocessing pipeline, run `run_hmmer.sh <db_dir> <n_cores>`. For example, if the user opens a terminal at the root directory of this repository, running `bash extras/run_hmmer.sh sample_genome 8` will generate the necessary files to run CTDGFinder.  
+If the user wants to use `run_hmmer.sh`, a sample "genome" (human chromosome 19 and 6) are included as a sample under the `sample_genome` directory, and contain the files necessary for all the preprocessing steps. A sample hmm and its associated files are also included. In order to run the preprocessing pipeline, run `run_hmmer.sh <db_dir> <n_cores>`. For example, if the user opens a terminal at the root directory of this repository, running `bash extras/run_hmmer.sh sample_genome 8` will generate the necessary files to run CTDGFinder using 8 cores.  
 In order to double check that the database is in order, running `python ctdg_finder.py -p MHC_I -d sample_genome -c 8 -n sample_run -S 1000` at the root directory of this repository, would successfully run CTDGFinder, and three CTDGs will be found in chromosome 6 (part of the MHC cluster).
 
 #### Note on intergenic distances and overlapping genes.  
