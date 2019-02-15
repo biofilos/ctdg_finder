@@ -13,6 +13,8 @@ done
 # Calculate bandwidth parameter
 echo Calculating bandwidth
 python $script_dir/bandwidth.py $db_dir $cpus
+# Generate hmmer database
+hmmpress $db_dir/panther/panther.hmm
 # Run HMMsearch
 echo Running HMMeR
 hmmsearch --cpu $cpus --noali -E 0.0001 -o $db_dir/hmmer/all.hmmer --tblout $db_dir/hmmer/all.tbl --domtblout $db_dir/hmmer/all.dom $db_dir/panther/panther.hmm $db_dir/seqs_hmmer.fa
