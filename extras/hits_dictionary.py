@@ -3,7 +3,6 @@ import json
 from sys import argv
 import os
 from concurrent import futures
-
 """
 Build JSON dictionaries, for each species/chromosome, where the keys are each
 gene in the chromosome, and the values is a list containing all the genes in
@@ -17,6 +16,32 @@ families = pfams
 # Load gene annotation
 genes = pd.read_csv(db + "/genes_parsed.csv")
 
+
+def verbose(flag=1):
+    if flag > 0:
+        print("Number of gene families/domains: {}:".format(len(pfams)))
+        print("Number of genes: {}".format(len(genes["acc"].unique())))
+        accs_csv = set(genes["acc"].values)
+        accs_json = set()
+        for pfam in pfams:
+            pfam_accs = pfams[pfam]
+            if flag > 1:
+                print("{} genes in gene family/domain {}".format(len(pfam_accs),pfam))
+            accs_json.update(pfam_accs)
+        print("Total number of genes in hmmer result: {}".format(len(accs_json)))
+        in_both = accs_json.intersection(accs_csv)
+        len_both = len(in_both)
+        print("Number of genes in hmmer result that are also in genes_parsed: {}".format(len_both))
+        if len_both != len(accs_json):
+            print("""The following genes are in the hmmer output but are not
+                  in the csv:""")
+            for not_in_csv in accs_json - accs_csv:
+                print(not_in_csv)
+            print("""The following genes are in the csv but not in the hmmer output""")
+            for not_in_json in accs_csv - accs_json:
+                print(not_in_json)
+        else:
+            print("All genes are in both data structures")
 
 def rec2dict_sp(sp):
     """
@@ -50,7 +75,7 @@ def rec2dict_sp(sp):
         chrom_out.close()
     print("*{} done".format(sp))
 
-
+verbose(2)
 with futures.ProcessPoolExecutor(cpus) as pool:
     res = pool.map(rec2dict_sp, list(set(genes.set_index("species").index.values)))
 _ = list(res)
