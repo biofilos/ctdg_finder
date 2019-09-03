@@ -1,0 +1,226 @@
+<?xml version='1.0' encoding='utf-8'?>
+<graphml xmlns="http://graphml.graphdrawing.org/xmlns" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://graphml.graphdrawing.org/xmlns http://graphml.graphdrawing.org/xmlns/1.0/graphml.xsd"><graph edgedefault="undirected"><node id="ENSG00000237541"/>
+<node id="ENSG00000204520"/>
+<node id="ENSG00000179344"/>
+<node id="ENSG00000204655"/>
+<node id="ENSG00000232629"/>
+<node id="ENSG00000204475"/>
+<node id="ENSG00000196735"/>
+<node id="ENSG00000223865"/>
+<node id="ENSG00000204290"/>
+<node id="ENSG00000111801"/>
+<node id="ENSG00000186470"/>
+<node id="ENSG00000242574"/>
+<node id="ENSG00000196126"/>
+<node id="ENSG00000198502"/>
+<node id="ENSG00000231389"/>
+<node id="ENSG00000204525"/>
+<node id="ENSG00000204592"/>
+<node id="ENSG00000131019"/>
+<node id="ENSG00000010704"/>
+<node id="ENSG00000206503"/>
+<node id="ENSG00000204642"/>
+<node id="ENSG00000131015"/>
+<node id="ENSG00000155918"/>
+<node id="ENSG00000234745"/>
+<node id="ENSG00000203722"/>
+<node id="ENSG00000111981"/>
+<node id="ENSG00000204632"/>
+<node id="ENSG00000204516"/>
+<edge source="ENSG00000237541" target="ENSG00000204520"/>
+<edge source="ENSG00000237541" target="ENSG00000179344"/>
+<edge source="ENSG00000237541" target="ENSG00000204655"/>
+<edge source="ENSG00000237541" target="ENSG00000232629"/>
+<edge source="ENSG00000237541" target="ENSG00000204475"/>
+<edge source="ENSG00000237541" target="ENSG00000196735"/>
+<edge source="ENSG00000237541" target="ENSG00000223865"/>
+<edge source="ENSG00000237541" target="ENSG00000204290"/>
+<edge source="ENSG00000237541" target="ENSG00000111801"/>
+<edge source="ENSG00000237541" target="ENSG00000186470"/>
+<edge source="ENSG00000237541" target="ENSG00000242574"/>
+<edge source="ENSG00000237541" target="ENSG00000196126"/>
+<edge source="ENSG00000237541" target="ENSG00000198502"/>
+<edge source="ENSG00000237541" target="ENSG00000231389"/>
+<edge source="ENSG00000204520" target="ENSG00000179344"/>
+<edge source="ENSG00000204520" target="ENSG00000204655"/>
+<edge source="ENSG00000204520" target="ENSG00000232629"/>
+<edge source="ENSG00000204520" target="ENSG00000204475"/>
+<edge source="ENSG00000204520" target="ENSG00000196735"/>
+<edge source="ENSG00000204520" target="ENSG00000223865"/>
+<edge source="ENSG00000204520" target="ENSG00000204290"/>
+<edge source="ENSG00000204520" target="ENSG00000111801"/>
+<edge source="ENSG00000204520" target="ENSG00000186470"/>
+<edge source="ENSG00000204520" target="ENSG00000242574"/>
+<edge source="ENSG00000204520" target="ENSG00000196126"/>
+<edge source="ENSG00000204520" target="ENSG00000198502"/>
+<edge source="ENSG00000204520" target="ENSG00000231389"/>
+<edge source="ENSG00000204520" target="ENSG00000204525"/>
+<edge source="ENSG00000204520" target="ENSG00000204592"/>
+<edge source="ENSG00000204520" target="ENSG00000131019"/>
+<edge source="ENSG00000204520" target="ENSG00000010704"/>
+<edge source="ENSG00000204520" target="ENSG00000206503"/>
+<edge source="ENSG00000204520" target="ENSG00000204642"/>
+<edge source="ENSG00000204520" target="ENSG00000131015"/>
+<edge source="ENSG00000204520" target="ENSG00000155918"/>
+<edge source="ENSG00000204520" target="ENSG00000234745"/>
+<edge source="ENSG00000204520" target="ENSG00000203722"/>
+<edge source="ENSG00000204520" target="ENSG00000111981"/>
+<edge source="ENSG00000204520" target="ENSG00000204632"/>
+<edge source="ENSG00000204520" target="ENSG00000204516"/>
+<edge source="ENSG00000179344" target="ENSG00000204655"/>
+<edge source="ENSG00000179344" target="ENSG00000232629"/>
+<edge source="ENSG00000179344" target="ENSG00000204475"/>
+<edge source="ENSG00000179344" target="ENSG00000196735"/>
+<edge source="ENSG00000179344" target="ENSG00000223865"/>
+<edge source="ENSG00000179344" target="ENSG00000204290"/>
+<edge source="ENSG00000179344" target="ENSG00000111801"/>
+<edge source="ENSG00000179344" target="ENSG00000186470"/>
+<edge source="ENSG00000179344" target="ENSG00000242574"/>
+<edge source="ENSG00000179344" target="ENSG00000196126"/>
+<edge source="ENSG00000179344" target="ENSG00000198502"/>
+<edge source="ENSG00000179344" target="ENSG00000231389"/>
+<edge source="ENSG00000204655" target="ENSG00000232629"/>
+<edge source="ENSG00000204655" target="ENSG00000204475"/>
+<edge source="ENSG00000204655" target="ENSG00000196735"/>
+<edge source="ENSG00000204655" target="ENSG00000223865"/>
+<edge source="ENSG00000204655" target="ENSG00000204290"/>
+<edge source="ENSG00000204655" target="ENSG00000111801"/>
+<edge source="ENSG00000204655" target="ENSG00000186470"/>
+<edge source="ENSG00000204655" target="ENSG00000242574"/>
+<edge source="ENSG00000204655" target="ENSG00000196126"/>
+<edge source="ENSG00000204655" target="ENSG00000198502"/>
+<edge source="ENSG00000204655" target="ENSG00000231389"/>
+<edge source="ENSG00000232629" target="ENSG00000204475"/>
+<edge source="ENSG00000232629" target="ENSG00000196735"/>
+<edge source="ENSG00000232629" target="ENSG00000223865"/>
+<edge source="ENSG00000232629" target="ENSG00000204290"/>
+<edge source="ENSG00000232629" target="ENSG00000111801"/>
+<edge source="ENSG00000232629" target="ENSG00000186470"/>
+<edge source="ENSG00000232629" target="ENSG00000242574"/>
+<edge source="ENSG00000232629" target="ENSG00000196126"/>
+<edge source="ENSG00000232629" target="ENSG00000198502"/>
+<edge source="ENSG00000232629" target="ENSG00000231389"/>
+<edge source="ENSG00000204475" target="ENSG00000196735"/>
+<edge source="ENSG00000204475" target="ENSG00000223865"/>
+<edge source="ENSG00000204475" target="ENSG00000204290"/>
+<edge source="ENSG00000204475" target="ENSG00000111801"/>
+<edge source="ENSG00000204475" target="ENSG00000186470"/>
+<edge source="ENSG00000204475" target="ENSG00000242574"/>
+<edge source="ENSG00000204475" target="ENSG00000196126"/>
+<edge source="ENSG00000204475" target="ENSG00000198502"/>
+<edge source="ENSG00000204475" target="ENSG00000231389"/>
+<edge source="ENSG00000196735" target="ENSG00000223865"/>
+<edge source="ENSG00000196735" target="ENSG00000204290"/>
+<edge source="ENSG00000196735" target="ENSG00000111801"/>
+<edge source="ENSG00000196735" target="ENSG00000186470"/>
+<edge source="ENSG00000196735" target="ENSG00000242574"/>
+<edge source="ENSG00000196735" target="ENSG00000196126"/>
+<edge source="ENSG00000196735" target="ENSG00000198502"/>
+<edge source="ENSG00000196735" target="ENSG00000231389"/>
+<edge source="ENSG00000223865" target="ENSG00000204290"/>
+<edge source="ENSG00000223865" target="ENSG00000111801"/>
+<edge source="ENSG00000223865" target="ENSG00000186470"/>
+<edge source="ENSG00000223865" target="ENSG00000242574"/>
+<edge source="ENSG00000223865" target="ENSG00000196126"/>
+<edge source="ENSG00000223865" target="ENSG00000198502"/>
+<edge source="ENSG00000223865" target="ENSG00000231389"/>
+<edge source="ENSG00000204290" target="ENSG00000111801"/>
+<edge source="ENSG00000204290" target="ENSG00000186470"/>
+<edge source="ENSG00000204290" target="ENSG00000242574"/>
+<edge source="ENSG00000204290" target="ENSG00000196126"/>
+<edge source="ENSG00000204290" target="ENSG00000198502"/>
+<edge source="ENSG00000204290" target="ENSG00000231389"/>
+<edge source="ENSG00000111801" target="ENSG00000186470"/>
+<edge source="ENSG00000111801" target="ENSG00000242574"/>
+<edge source="ENSG00000111801" target="ENSG00000196126"/>
+<edge source="ENSG00000111801" target="ENSG00000198502"/>
+<edge source="ENSG00000111801" target="ENSG00000231389"/>
+<edge source="ENSG00000186470" target="ENSG00000242574"/>
+<edge source="ENSG00000186470" target="ENSG00000196126"/>
+<edge source="ENSG00000186470" target="ENSG00000198502"/>
+<edge source="ENSG00000186470" target="ENSG00000231389"/>
+<edge source="ENSG00000242574" target="ENSG00000196126"/>
+<edge source="ENSG00000242574" target="ENSG00000198502"/>
+<edge source="ENSG00000242574" target="ENSG00000231389"/>
+<edge source="ENSG00000196126" target="ENSG00000198502"/>
+<edge source="ENSG00000196126" target="ENSG00000231389"/>
+<edge source="ENSG00000198502" target="ENSG00000231389"/>
+<edge source="ENSG00000204525" target="ENSG00000204592"/>
+<edge source="ENSG00000204525" target="ENSG00000131019"/>
+<edge source="ENSG00000204525" target="ENSG00000010704"/>
+<edge source="ENSG00000204525" target="ENSG00000206503"/>
+<edge source="ENSG00000204525" target="ENSG00000204642"/>
+<edge source="ENSG00000204525" target="ENSG00000131015"/>
+<edge source="ENSG00000204525" target="ENSG00000155918"/>
+<edge source="ENSG00000204525" target="ENSG00000234745"/>
+<edge source="ENSG00000204525" target="ENSG00000203722"/>
+<edge source="ENSG00000204525" target="ENSG00000111981"/>
+<edge source="ENSG00000204525" target="ENSG00000204632"/>
+<edge source="ENSG00000204525" target="ENSG00000204516"/>
+<edge source="ENSG00000204592" target="ENSG00000131019"/>
+<edge source="ENSG00000204592" target="ENSG00000010704"/>
+<edge source="ENSG00000204592" target="ENSG00000206503"/>
+<edge source="ENSG00000204592" target="ENSG00000204642"/>
+<edge source="ENSG00000204592" target="ENSG00000131015"/>
+<edge source="ENSG00000204592" target="ENSG00000155918"/>
+<edge source="ENSG00000204592" target="ENSG00000234745"/>
+<edge source="ENSG00000204592" target="ENSG00000203722"/>
+<edge source="ENSG00000204592" target="ENSG00000111981"/>
+<edge source="ENSG00000204592" target="ENSG00000204632"/>
+<edge source="ENSG00000204592" target="ENSG00000204516"/>
+<edge source="ENSG00000131019" target="ENSG00000010704"/>
+<edge source="ENSG00000131019" target="ENSG00000206503"/>
+<edge source="ENSG00000131019" target="ENSG00000204642"/>
+<edge source="ENSG00000131019" target="ENSG00000131015"/>
+<edge source="ENSG00000131019" target="ENSG00000155918"/>
+<edge source="ENSG00000131019" target="ENSG00000234745"/>
+<edge source="ENSG00000131019" target="ENSG00000203722"/>
+<edge source="ENSG00000131019" target="ENSG00000111981"/>
+<edge source="ENSG00000131019" target="ENSG00000204632"/>
+<edge source="ENSG00000131019" target="ENSG00000204516"/>
+<edge source="ENSG00000010704" target="ENSG00000206503"/>
+<edge source="ENSG00000010704" target="ENSG00000204642"/>
+<edge source="ENSG00000010704" target="ENSG00000131015"/>
+<edge source="ENSG00000010704" target="ENSG00000155918"/>
+<edge source="ENSG00000010704" target="ENSG00000234745"/>
+<edge source="ENSG00000010704" target="ENSG00000203722"/>
+<edge source="ENSG00000010704" target="ENSG00000111981"/>
+<edge source="ENSG00000010704" target="ENSG00000204632"/>
+<edge source="ENSG00000010704" target="ENSG00000204516"/>
+<edge source="ENSG00000206503" target="ENSG00000204642"/>
+<edge source="ENSG00000206503" target="ENSG00000131015"/>
+<edge source="ENSG00000206503" target="ENSG00000155918"/>
+<edge source="ENSG00000206503" target="ENSG00000234745"/>
+<edge source="ENSG00000206503" target="ENSG00000203722"/>
+<edge source="ENSG00000206503" target="ENSG00000111981"/>
+<edge source="ENSG00000206503" target="ENSG00000204632"/>
+<edge source="ENSG00000206503" target="ENSG00000204516"/>
+<edge source="ENSG00000204642" target="ENSG00000131015"/>
+<edge source="ENSG00000204642" target="ENSG00000155918"/>
+<edge source="ENSG00000204642" target="ENSG00000234745"/>
+<edge source="ENSG00000204642" target="ENSG00000203722"/>
+<edge source="ENSG00000204642" target="ENSG00000111981"/>
+<edge source="ENSG00000204642" target="ENSG00000204632"/>
+<edge source="ENSG00000204642" target="ENSG00000204516"/>
+<edge source="ENSG00000131015" target="ENSG00000155918"/>
+<edge source="ENSG00000131015" target="ENSG00000234745"/>
+<edge source="ENSG00000131015" target="ENSG00000203722"/>
+<edge source="ENSG00000131015" target="ENSG00000111981"/>
+<edge source="ENSG00000131015" target="ENSG00000204632"/>
+<edge source="ENSG00000131015" target="ENSG00000204516"/>
+<edge source="ENSG00000155918" target="ENSG00000234745"/>
+<edge source="ENSG00000155918" target="ENSG00000203722"/>
+<edge source="ENSG00000155918" target="ENSG00000111981"/>
+<edge source="ENSG00000155918" target="ENSG00000204632"/>
+<edge source="ENSG00000155918" target="ENSG00000204516"/>
+<edge source="ENSG00000234745" target="ENSG00000203722"/>
+<edge source="ENSG00000234745" target="ENSG00000111981"/>
+<edge source="ENSG00000234745" target="ENSG00000204632"/>
+<edge source="ENSG00000234745" target="ENSG00000204516"/>
+<edge source="ENSG00000203722" target="ENSG00000111981"/>
+<edge source="ENSG00000203722" target="ENSG00000204632"/>
+<edge source="ENSG00000203722" target="ENSG00000204516"/>
+<edge source="ENSG00000111981" target="ENSG00000204632"/>
+<edge source="ENSG00000111981" target="ENSG00000204516"/>
+<edge source="ENSG00000204632" target="ENSG00000204516"/>
+</graph></graphml>
