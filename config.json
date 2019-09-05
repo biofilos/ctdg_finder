@@ -1,0 +1,8 @@
+{
+    "gff": "./sample_genome/db/Homo_sapiens_genes.gff",
+    "chroms": "./sample_genome/db/Homo_sapiens_chroms.txt",
+    "paths": {
+        "out_dir": "./out_sample"
+    },
+    "feat_type": "gene"
+}
