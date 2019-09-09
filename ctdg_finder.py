@@ -114,7 +114,7 @@ def get_chrom_homologs(gff,feat_type):
 def meanshift(gene_list, chrom_info):
     # Process only lists with more than one gene
     if len(gene_list) == 1:
-        return 0
+        return [0]
     else:
         # Get bandwidth from one of the genes
         chromosome = gene_list[0].iv.chrom
