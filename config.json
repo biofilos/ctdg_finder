@@ -4,5 +4,6 @@
     "paths": {
         "out_dir": "./out_sample"
     },
-    "feat_type": "gene"
+    "feat_type": "gene",
+    "top_level_feat": "chromosome"
 }

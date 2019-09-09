@@ -4,5 +4,16 @@
 			"path": "."
 		}
 	],
-	"settings": {}
+	"settings": {
+		"python.testing.cwd": "/home/alekos/Documents/phd/vanderbilt/clusters/ctdg_finder",
+		"python.testing.unittestEnabled": true,
+		"python.testing.unittestArgs": [
+			"-v",
+			"-s",
+			".",
+			"-p",
+			"test*.py"
+		],
+		"pythonIndent.useTabOnHangingIndent": true
+	}
 }

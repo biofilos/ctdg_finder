@@ -11,7 +11,9 @@
             "program": "${file}",
             "console": "integratedTerminal",
             "args": ["config.json"]
+
         },
+        
         {
             "name": "csv to gff",
             "type": "python",

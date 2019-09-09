@@ -4,6 +4,8 @@ import pybedtools
 import sys
 from collections import defaultdict
 import gffutils
+from HTSeq import GFF_Reader
+from sklearn.cluster import MeanShift
 
 # Load configuration
 
@@ -17,7 +19,7 @@ def load_config(config_file):
         config_file {json file} -- JSON file containing relevant parameters
     """
     files = ["gff","chroms"]
-    variables = ["feat_type"]
+    variables = ["feat_type", "top_level_feat"]
     paths = ["out_dir"]
     parameters = files + variables
     # 1. Check that the config file exists
@@ -51,70 +53,88 @@ def check_gff(config):
     records = [x.strip().split("\t") for x in open(gff)]
     
 
-def filter_field(interval, kind, attr):
-    """
-    Return intervals of a specific type that
-    has non-empy (with 'None') attribute
+# def filter_field(interval, kind, attr):
+#     """
+#     Return intervals of a specific type that
+#     has non-empy (with 'None') attribute
     
-    Arguments:
-        interval {BedTool} -- Interval
-        interval {str} -- type (third column of gff)
-        attr {str} -- attribute to be tested (from 9th col)
-    """
-    desired_type = kind == interval.fields[2]
-    with_attr = attr in interval.attrs
-    return desired_type and with_attr and "None" not in interval[attr]
+#     Arguments:
+#         interval {BedTool} -- Interval
+#         interval {str} -- type (third column of gff)
+#         attr {str} -- attribute to be tested (from 9th col)
+#     """
+#     desired_type = kind == interval.fields[2]
+#     with_attr = attr in interval.attrs
+#     return desired_type and with_attr and "None" not in interval[attr]
 
-def get_genes(config):
+def get_genes(gff, feat_type):
     """Extract the features to be clustered
     
     Arguments:
-        config {json file} -- Json file containing parameters
+        gff {file_path} -- GFF file containing features to be clustered
+        feat_type {str} -- feature to be clustered (genes, etc)
     
     Returns:
-        dict -- Dictionry of Bed tools for features with annotated families grouped by chromosome
+        generator of valid genes
     """
-    # Load config
-    gff = config["gff"]
-    feat_type = config["feat_type"]
-    out_dir = config["paths"]["out_dir"]
-    species = gff.split(".gff")[0].split("/")[-1]    
     
+    # Yield features of the correct type, and with family annotation
+    for rec in GFF_Reader(gff):
+        if rec.type == feat_type and \
+            "families" in rec.attr and \
+            not "None" in rec.attr["families"]:
+            yield rec
+
+def get_chrom_info(gff, top_level):
+    chroms = [rec for rec in GFF_Reader(gff) if rec.type == top_level]
+    all_with_bw = all(["bandwidth" in rec.attr for rec in chroms])
+    assert all_with_bw, "Some top-level features lack the bandwidth parameter"
+    chrom_info = {rec.iv.chrom: float(rec.attr["bandwidth"]) for rec in chroms}
+    return chrom_info
+        
     
-    # Parse the gff
-    feat_db_fn = "{}/{}_feats.db".format(out_dir, species)
-    if os.path.exists(feat_db_fn):
-        features = gffutils.FeatureDB(feat_db_fn)
+def group_chrom(gff, feature_type):
+    chrom_dict = defaultdict(list)
+    for feat in get_genes(gff, feature_type):
+        feat_chrom = feat.iv.chrom
+        chrom_dict[feat_chrom].append(feat)
+    return chrom_dict
+            
+
+def get_chrom_homologs(gff,feat_type):
+    genes_per_chrom = group_chrom(gff, feat_type)
+    families = {x: defaultdict(list) for x in genes_per_chrom.keys()}
+    for chrom, chrom_genes in genes_per_chrom.items():
+        for gene in chrom_genes:
+            for fam in gene.attr["families"].split(","):
+                families[chrom][fam].append(gene)
+    return families
+
+
+def meanshift(gene_list, chrom_info):
+    # Process only lists with more than one gene
+    if len(gene_list) == 1:
+        return 0
     else:
-        gff_str = ""
-        for line in open(gff):
-            data = line.split("\t")
-            if line.startswith("##") or (data[2] == feat_type and not "None" in data[-1]):
-                gff_str += line
-        features = gffutils.create_db(gff_str, feat_db_fn, force=False, from_string=True)
-    return features
-
-
-def group_chrom(features):
-    """
-    Group features by chromosome
-    
-    Arguments:
-        features {BedTool} -- Group of features
-    Return:
-        feat_dict {dict} -- Dictionary of features with chromosomes as keys
-    """
-    feat_dict = defaultdict(list)
-    for feat in features:
-        chrom = feat.chrom
-        feat_dict[chrom].append(feat)
-    return feat_dict
+        # Get bandwidth from one of the genes
+        chromosome = gene_list[0].iv.chrom
+        bandwidth = chrom_info[chromosome]
+        xy = [(gene.iv.start, 0) for gene in gene_list]
+        MS = MeanShift(bandwidth=bandwidth).fit(xy)
+        return MS.labels_
 
 if __name__ == "__main__":
     # Check that arguments were passed
     assert len(sys.argv) > 1, "No configuration file was provided"
     config_file = sys.argv[1]
-    config = load_config(config_file)    
+    config = load_config(config_file)
+    gff = config["gff"]
+    feature_to_cluster = config["feat_type"]
+    top_level_feat = config["top_level_feat"]
     create_dirs(config["paths"])
-    genes = get_genes(config)
+    # Get groups of homologous genes per chromosome
+    chrom_homologs = get_chrom_homologs(gff, feature_to_cluster)
+    # Extract bandwidth parameter for MeanShift for all the chromosomes
+    chrom_info = get_chrom_info(gff, top_level_feat)
+    
     print("DONE")
