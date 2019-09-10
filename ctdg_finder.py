@@ -4,10 +4,10 @@ import pybedtools
 import sys
 from collections import defaultdict, Counter
 import gffutils
-from HTSeq import GFF_Reader, GenomicInterval
+from HTSeq import GFF_Reader, GenomicInterval, GenomicArrayOfSets
 from sklearn.cluster import MeanShift
 import numpy as np
-
+from ipdb import set_trace
 # Load configuration
 
 
@@ -170,11 +170,13 @@ def sort_genes(gene_rec):
     return gene_rec.iv.start
 
 
-def cluster_with_stats(cluster_family, chrom_info, gene_starts, gene_ends, gff, feature,chrom_lenghts, samples,percentile, cluster_counter):
+def cluster_with_stats(cluster_family, chrom_info, gff, feature,chrom_lenghts, samples,percentile, cluster_counter):
     gff_str = ""
     gene = cluster_family[0]
     cluster_n_genes = len(cluster_family)
     cluster_chrom = gene.iv.chrom
+    gene_starts = [x.iv.start for x in cluster_family]
+    gene_ends = [x.iv.end for x in cluster_family]
     cluster_start = min(gene_starts)
     cluster_end = max(gene_ends)
     cluster_len = cluster_end - cluster_start
@@ -221,18 +223,17 @@ def clustering(feature, chrom_homologs, chrom_info, gff, chrom_lenghts, samples,
                 gene_starts, gene_ends = [0] * cluster_n_genes, [0] * cluster_n_genes
                 # cluster_families = []
                 cluster_groups = defaultdict(list)
-                for ix, (ms_cluster, gene) in enumerate(zip(meanshift_labels, genelist)):
-                    gene.attr["meanshift_cluster"] = ms_cluster
-                    cluster_groups[ms_cluster].append(gene)
-                    gene_starts[ix] = gene.iv.start
-                    gene_ends[ix]= gene.iv.end
+                for ms_cluster, gene in zip(meanshift_labels, genelist):
+                    ms_cluster_name = "{}_{}".format(chrom,ms_cluster)
+                    gene.attr["meanshift_cluster"] = ms_cluster_name
+                    cluster_groups[ms_cluster_name].append(gene)
                     # cluster_families += gene.attr["families"].split(',')
                 for ms_cl in cluster_groups:
                     cluster_gene_list = cluster_groups[ms_cl]
                     # Skip meanshift clusters with only one gene
                     if len(cluster_gene_list) > 1:
                         cluster_gff = cluster_with_stats(cluster_gene_list, chrom_info,
-                                                        gene_starts, gene_ends, gff, feature,
+                                                        gff, feature,
                                                         chrom_lenghts, samples,
                                                         percentile, cluster_counter)
                         cluster_counter += 1
@@ -240,8 +241,27 @@ def clustering(feature, chrom_homologs, chrom_info, gff, chrom_lenghts, samples,
                     
 
     return gff_str
-
-
+def merge_clusters(out_path, feature_to_cluster):
+    # Merge overlapping clusters
+    merged_path = out_path.replace("clusters", "merged_clusters")
+    with open(merged_path, "w") as f:
+        merged = pybedtools.BedTool(out_path).filter(lambda x: x.fields[2]=="cluster").sort().merge()
+        chrom_cts = defaultdict(int)
+        for new_cluster in merged:
+            cl_chrom = new_cluster.chrom
+            cl_start = new_cluster.start
+            cl_end = new_cluster.end
+            chrom_cts[cl_chrom] += 1
+            new_name = "{}_{}".format(cl_chrom, chrom_cts[cl_chrom])
+            clust_genes = sorted([x for x in GFF_Reader(out_path) if x.type == feature_to_cluster and x.iv.chrom == cl_chrom and x.iv.start < cl_end and x.iv.end > cl_start], key=lambda x: x.iv.start)
+            # write cluster info
+            f.write("{}\tCTDGFinder\tcluster\t{}\t{}\t.\t.\t.\tID={};duplicates={}\n".format(cl_chrom, cl_start, cl_end, new_name, len(clust_genes)))
+            for ix, gene in enumerate(clust_genes):
+                ct = ix + 1
+                gene.attr["order"] = ct
+                gene.attr["Parent"] = new_name
+                new_gene_gff = gene.get_gff_line().replace("; ", ";").replace(" ", "=")
+                f.write(new_gene_gff)
 # def group_ms_clusters(meanshift_clusters):
 #     for 
     
@@ -257,7 +277,7 @@ def run(config_file):
     top_level_feat = config["top_level_feat"]
     create_dirs(config["paths"])
     out_suffix = "_clusters.gff"
-    outfile = gff.replace(".gff", out_suffix).replace(".gff3", out_suffix).split("/")[-1]
+    outfile = gff.replace("_genes.gff", out_suffix).replace("_genes.gff3", out_suffix).split("/")[-1]
     out_dir = config["paths"]["out_dir"]
     out_path = "{}/{}".format(out_dir, outfile)
     if os.path.exists(out_path):
@@ -273,7 +293,9 @@ def run(config_file):
 
         with open(out_path, "w") as f:
             f.write(clusters_gff)
-        # Merge overlapping clusters
+        merge_clusters(out_path, feature_to_cluster)
+                    
+            
     print("DONE")
 
 if __name__ == "__main__":

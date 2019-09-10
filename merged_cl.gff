@@ -1,0 +1,10 @@
+##gff-version 3
+chr19	Annotation	cluster	41619543	41688167	.	.	. ID=cluster_chr194
+chr19	Annotation	cluster	44809119	44878938	.	.	. ID=cluster_chr193
+chr19	Annotation	cluster	54360980	54587395	.	.	. ID=cluster_chr192
+chr19	Annotation	cluster	54906186	55032865	.	.	. ID=cluster_chr191
+chr6	Annotation	cluster	26365157	26448409	.	.	. ID=cluster_chr65
+chr6	Annotation	cluster	29723338	29945280	.	.	. ID=cluster_chr64
+chr6	Annotation	cluster	31269337	31592749	.	.	. ID=cluster_chr63
+chr6	Annotation	cluster	32394734	33087201	.	.	. ID=cluster_chr62
+chr6	Annotation	cluster	14991870	15006906	.	.	. ID=cluster_chr61
