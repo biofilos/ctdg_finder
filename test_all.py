@@ -15,8 +15,8 @@ class TestGenes(unittest.TestCase):
         return [x for x in get_genes(gff, feature)]
     
     base_gene = ["chr19","Annotation","gene",
-                 "1", "100", ".","+",".",
-                 "ID=gene;families=fam1,fam2"
+                    "1", "100", ".","+",".",
+                    "ID=gene;families=fam1,fam2"
                 ]
     bad_gene = base_gene.copy()
     bad_gene[2] = "bad_feature"

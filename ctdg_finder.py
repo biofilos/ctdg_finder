@@ -2,10 +2,11 @@ import json
 import os
 import pybedtools
 import sys
-from collections import defaultdict
+from collections import defaultdict, Counter
 import gffutils
-from HTSeq import GFF_Reader
+from HTSeq import GFF_Reader, GenomicInterval
 from sklearn.cluster import MeanShift
+import numpy as np
 
 # Load configuration
 
@@ -19,13 +20,18 @@ def load_config(config_file):
         config_file {json file} -- JSON file containing relevant parameters
     """
     files = ["gff","chroms"]
-    variables = ["feat_type", "top_level_feat"]
+    variables = ["feat_type", "top_level_feat",
+                 "samples","percentile_threshold"]
     paths = ["out_dir"]
     parameters = files + variables
-    # 1. Check that the config file exists
-    assert os.path.exists(config_file), config_file + " does not exist"
+
     # 2. Load config file
-    config = json.load(open(config_file))
+    if type(config_file) == dict:
+        config = config_file
+    else:
+        # 1. Check that the config file exists
+        assert os.path.exists(config_file), config_file + " does not exist"
+        config = json.load(open(config_file))
     # 3. Check that all the necessary parameters are specified 
     for parameter in parameters:
         assert parameter in config, parameter + " is missing in the config file"
@@ -86,7 +92,7 @@ def get_genes(gff, feat_type):
             yield rec
 
 def get_chrom_info(gff, top_level):
-    chroms = [rec for rec in GFF_Reader(gff) if rec.type == top_level]
+    chroms = [rec for rec in GFF_Reader(gff) if rec.type in top_level]
     all_with_bw = all(["bandwidth" in rec.attr for rec in chroms])
     assert all_with_bw, "Some top-level features lack the bandwidth parameter"
     chrom_info = {rec.iv.chrom: float(rec.attr["bandwidth"]) for rec in chroms}
@@ -123,18 +129,154 @@ def meanshift(gene_list, chrom_info):
         MS = MeanShift(bandwidth=bandwidth).fit(xy)
         return MS.labels_
 
-if __name__ == "__main__":
+
+def genes_in_interval(record, feature, chrom, start, end):
+    is_feat = record.fields[2] == feature
+    in_chrom = record.chrom == chrom
+    inside_interval = record.start < end and record.end > start
+    return is_feat and in_chrom and inside_interval
+
+def cluster_stats(gff, feature, chrom_lengths, cluster_start,
+                  cluster_end, samples, percentile):
+    cluster_len = cluster_end - cluster_start            
+    # Genome intervals
+    
+    # Random intervals
+    random_bedtool = pybedtools.BedTool()
+    random_intervals = random_bedtool.random(l=cluster_len,
+                                                n=samples,
+                                                g=chrom_lengths)
+    all_max_dups = []
+    for rand_interval in random_intervals:
+        
+        n_dups = 0
+        r_start = rand_interval.start
+        r_end = rand_interval.end
+        r_chrom = rand_interval.chrom
+        sample_interval = GenomicInterval(r_chrom, r_start, r_end)
+        potential_dups = [x.attr["families"] for x in GFF_Reader(gff) if sample_interval.overlaps(x.iv) and x.type == feature and not "None" in x.attr["families"]]
+        
+        # for x in pybedtools.BedTool(gff):
+        #     if genes_in_interval(x, feature, r_chrom,r_start, r_end) and x.attrs["families"] != "None":
+        #         potential_dups.append(x.attrs["families"])
+        if potential_dups:
+            family_counter = Counter(potential_dups)
+            all_max_dups.append(max(family_counter.values()))
+            perc_samples = np.percentile(all_max_dups, percentile)
+            return perc_samples
+        else:
+            return 0
+def sort_genes(gene_rec):
+    return gene_rec.iv.start
+
+
+def cluster_with_stats(cluster_family, chrom_info, gene_starts, gene_ends, gff, feature,chrom_lenghts, samples,percentile, cluster_counter):
+    gff_str = ""
+    gene = cluster_family[0]
+    cluster_n_genes = len(cluster_family)
+    cluster_chrom = gene.iv.chrom
+    cluster_start = min(gene_starts)
+    cluster_end = max(gene_ends)
+    cluster_len = cluster_end - cluster_start
+    percentile_thresh = cluster_stats(gff, feature, chrom_lenghts,
+                                        cluster_start, cluster_end,
+                                        samples, percentile)
+    # Check if the cluster has more duplicates than the sample
+    if cluster_n_genes >= percentile_thresh:
+        families = {x.attr["families"] for x in cluster_family}
+        cl_families = ",".join(families)
+        cluster_name = "{}_{}".format(cluster_chrom, cluster_counter)
+        attrs = "ID={};length={};duplicates={};percentile={};families={}\n".format(cluster_name, cluster_len,
+                                                                                    cluster_n_genes,
+                                                                                    percentile_thresh,cl_families)
+        cluster_gff = [cluster_chrom, "CTDGFinder", "cluster",
+                        str(cluster_start), str(cluster_end), ".", ".", ".",
+                        attrs]
+        cluster_gff_line = "\t".join(cluster_gff)
+        gff_str += cluster_gff_line
+        sp = gff.split("/")[-1].replace(".gff", "")
+        print("{}\t{}: {} duplicates (P95: {})".format(sp, cluster_name, cluster_n_genes, percentile_thresh))
+        for ix, gene in enumerate(sorted(cluster_family, key=sort_genes)):
+            gene.attr["Parent"] = cluster_name
+            gene.attr["order"] = ix + 1
+            del gene.attr["meanshift_cluster"]
+            gene_gff_pre_line = gene.get_gff_line()
+            gene_line = gene_gff_pre_line.replace("; ", ";").replace(" ", "=").replace('"', "")
+            gff_str += gene_line
+    return gff_str
+
+
+def clustering(feature, chrom_homologs, chrom_info, gff, chrom_lenghts, samples, percentile):
+    gff_str = ""
+    for chrom, fam_dict in chrom_homologs.items():
+        cluster_counter = 1
+        fams_for_removal = []
+        for family, genelist in fam_dict.items():
+            meanshift_labels = meanshift(genelist, chrom_info)
+            # Remove meanshift clusters if they contain only one gene
+            cluster_n_genes = len(genelist)
+            if cluster_n_genes == 1:
+                fams_for_removal.append((chrom,family))
+            else:
+                gene_starts, gene_ends = [0] * cluster_n_genes, [0] * cluster_n_genes
+                # cluster_families = []
+                cluster_groups = defaultdict(list)
+                for ix, (ms_cluster, gene) in enumerate(zip(meanshift_labels, genelist)):
+                    gene.attr["meanshift_cluster"] = ms_cluster
+                    cluster_groups[ms_cluster].append(gene)
+                    gene_starts[ix] = gene.iv.start
+                    gene_ends[ix]= gene.iv.end
+                    # cluster_families += gene.attr["families"].split(',')
+                for ms_cl in cluster_groups:
+                    cluster_gene_list = cluster_groups[ms_cl]
+                    # Skip meanshift clusters with only one gene
+                    if len(cluster_gene_list) > 1:
+                        cluster_gff = cluster_with_stats(cluster_gene_list, chrom_info,
+                                                        gene_starts, gene_ends, gff, feature,
+                                                        chrom_lenghts, samples,
+                                                        percentile, cluster_counter)
+                        cluster_counter += 1
+                        gff_str += cluster_gff
+                    
+
+    return gff_str
+
+
+# def group_ms_clusters(meanshift_clusters):
+#     for 
+    
+def run(config_file):
     # Check that arguments were passed
-    assert len(sys.argv) > 1, "No configuration file was provided"
-    config_file = sys.argv[1]
+    
     config = load_config(config_file)
     gff = config["gff"]
+    chrom_lens = config["chroms"]
+    samples= config["samples"]
+    percentile_threshold = config["percentile_threshold"]
     feature_to_cluster = config["feat_type"]
     top_level_feat = config["top_level_feat"]
     create_dirs(config["paths"])
-    # Get groups of homologous genes per chromosome
-    chrom_homologs = get_chrom_homologs(gff, feature_to_cluster)
-    # Extract bandwidth parameter for MeanShift for all the chromosomes
-    chrom_info = get_chrom_info(gff, top_level_feat)
-    
+    out_suffix = "_clusters.gff"
+    outfile = gff.replace(".gff", out_suffix).replace(".gff3", out_suffix).split("/")[-1]
+    out_dir = config["paths"]["out_dir"]
+    out_path = "{}/{}".format(out_dir, outfile)
+    if os.path.exists(out_path):
+        print("Not overwriting {}".format(out_path))
+    else:
+        print("Working on {}".format(gff))
+        # Get groups of homologous genes per chromosome
+        chrom_homologs = get_chrom_homologs(gff, feature_to_cluster)
+        # Extract bandwidth parameter for MeanShift for all the chromosomes
+        chrom_info = get_chrom_info(gff, top_level_feat)
+        clusters_gff = clustering(feature_to_cluster, chrom_homologs, chrom_info,
+                                        gff, chrom_lens, samples, percentile_threshold)
+
+        with open(out_path, "w") as f:
+            f.write(clusters_gff)
+        # Merge overlapping clusters
     print("DONE")
+
+if __name__ == "__main__":
+    assert len(sys.argv) > 1, "No configuration file was provided"
+    config_file = sys.argv[1]
+    run(config_file)
