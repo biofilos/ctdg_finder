@@ -43,11 +43,13 @@ def load_config(config_file):
     for path in paths:
         assert path in config["paths"], path + " not specified"
     return config
-            
+
+
 def create_dirs(paths):
     for path in paths.values():
         os.makedirs(path, exist_ok=True)
-    
+
+
 def check_gff(config):
     """
     Quality check of GFF file
@@ -90,6 +92,7 @@ def get_genes(gff, feat_type):
             "families" in rec.attr and \
             not "None" in rec.attr["families"]:
             yield rec
+
 
 def get_chrom_info(gff, top_level):
     chroms = [rec for rec in GFF_Reader(gff) if rec.type in top_level]
@@ -136,6 +139,7 @@ def genes_in_interval(record, feature, chrom, start, end):
     inside_interval = record.start < end and record.end > start
     return is_feat and in_chrom and inside_interval
 
+
 def cluster_stats(gff, feature, chrom_lengths, cluster_start,
                   cluster_end, samples, percentile):
     cluster_len = cluster_end - cluster_start            
@@ -143,9 +147,7 @@ def cluster_stats(gff, feature, chrom_lengths, cluster_start,
     
     # Random intervals
     random_bedtool = pybedtools.BedTool()
-    random_intervals = random_bedtool.random(l=cluster_len,
-                                                n=samples,
-                                                g=chrom_lengths)
+    random_intervals = random_bedtool.random(l=cluster_len, n=samples, g=chrom_lengths)
     all_max_dups = []
     for rand_interval in random_intervals:
         
@@ -154,18 +156,20 @@ def cluster_stats(gff, feature, chrom_lengths, cluster_start,
         r_end = rand_interval.end
         r_chrom = rand_interval.chrom
         sample_interval = GenomicInterval(r_chrom, r_start, r_end)
-        potential_dups = [x.attr["families"] for x in GFF_Reader(gff) if sample_interval.overlaps(x.iv) and x.type == feature and not "None" in x.attr["families"]]
-        
-        # for x in pybedtools.BedTool(gff):
-        #     if genes_in_interval(x, feature, r_chrom,r_start, r_end) and x.attrs["families"] != "None":
-        #         potential_dups.append(x.attrs["families"])
-        if potential_dups:
-            family_counter = Counter(potential_dups)
+        potential_dups = [x.attr["families"].split(",") for x in GFF_Reader(gff) if sample_interval.overlaps(x.iv) and x.type == feature and not "None" in x.attr["families"]]
+        potential_dups_flat = []
+        for i in potential_dups:
+            potential_dups_flat += i
+        if potential_dups_flat:
+            family_counter = Counter(potential_dups_flat)
             all_max_dups.append(max(family_counter.values()))
-            perc_samples = np.percentile(all_max_dups, percentile)
-            return perc_samples
         else:
-            return 0
+            all_max_dups.append(0)
+    perc_samples = np.percentile(all_max_dups, percentile)
+    return perc_samples
+
+
+
 def sort_genes(gene_rec):
     return gene_rec.iv.start
 
@@ -241,6 +245,8 @@ def clustering(feature, chrom_homologs, chrom_info, gff, chrom_lenghts, samples,
                     
 
     return gff_str
+
+
 def merge_clusters(out_path, feature_to_cluster):
     # Merge overlapping clusters
     merged_path = out_path.replace("clusters", "merged_clusters")
