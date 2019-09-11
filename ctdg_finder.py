@@ -21,7 +21,7 @@ def load_config(config_file):
     """
     files = ["gff","chroms"]
     variables = ["feat_type", "top_level_feat",
-                 "samples","percentile_threshold"]
+                 "samples","percentile_threshold", "overwrite"]
     paths = ["out_dir"]
     parameters = files + variables
 
@@ -280,7 +280,7 @@ def run(config_file):
     outfile = gff.replace("_genes.gff", out_suffix).replace("_genes.gff3", out_suffix).split("/")[-1]
     out_dir = config["paths"]["out_dir"]
     out_path = "{}/{}".format(out_dir, outfile)
-    if os.path.exists(out_path):
+    if os.path.exists(out_path) and not config["overwrite"]:
         print("Not overwriting {}".format(out_path))
     else:
         print("Working on {}".format(gff))

@@ -7,5 +7,6 @@
     "feat_type": "gene",
     "top_level_feat": "chromosome",
     "samples": 1000,
-    "percentile_threshold": 95
+    "percentile_threshold": 95,
+    "overwrite": true
 }
