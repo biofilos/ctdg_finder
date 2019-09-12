@@ -203,28 +203,40 @@ def cluster_stats(gff, feature, chrom_lengths, cluster_start,
     # Initialize list of the distribution of features from the same family
     all_max_dups = []
     # Scan random intervals
-    for rand_interval in random_intervals:
-        # Get coordinates of the interval
-        r_start = rand_interval.start
-        r_end = rand_interval.end
-        r_chrom = rand_interval.chrom
-        # Use HTSeq data structures (maybe pybedtools can be faster
-        sample_interval = GenomicInterval(r_chrom, r_start, r_end)
-        # Extract the families of the features overlapping the random region
-        potential_dups = [x.attr["families"].split(",") for x in GFF_Reader(gff) if
-                          sample_interval.overlaps(x.iv) and x.type == feature and "None" not in x.attr["families"]]
-        # Flatten the list of families
-        potential_dups_flat = []
-        for i in potential_dups:
-            potential_dups_flat += i
-        if potential_dups_flat:
-            # Count how many featues have the same family
-            family_counter = Counter(potential_dups_flat)
-            # Add the maximum number of families represented in the sample region
-            all_max_dups.append(max(family_counter.values()))
-        else:
-            # If no features were included, use 0
-            all_max_dups.append(0)
+    # for rand_interval in random_intervals:
+    #     # Get coordinates of the interval
+    #     r_start = rand_interval.start
+    #     r_end = rand_interval.end
+    #     r_chrom = rand_interval.chrom
+    #     # Use HTSeq data structures (maybe pybedtools can be faster
+    #     sample_interval = GenomicInterval(r_chrom, r_start, r_end)
+    #     # Extract the families of the features overlapping the random region
+    #     potential_dups = [x.attr["families"].split(",") for x in GFF_Reader(gff) if
+    #                       sample_interval.overlaps(x.iv) and x.type == feature and "None" not in x.attr["families"]]
+
+    rand_ivs = [GenomicInterval(x.chrom,x.start,x.end) for x in random_intervals]
+    potential_dups = [set() for x in range(samples)]
+    for feat in GFF_Reader(gff):
+        if feat.type == feature:
+            for ix, sample_interval in enumerate(rand_ivs):
+                if sample_interval.overlaps(feat.iv):
+                    families = feat.attr["families"].split(",")
+                    if "None" not in families:
+                        potential_dups[ix].update(families)
+
+    # Flatten the list of families
+    all_max_dups = [len(x) for x in potential_dups]
+    # potential_dups_flat = []
+    # for i in potential_dups:
+    #     potential_dups_flat += i
+    # if potential_dups_flat:
+    #     # Count how many featues have the same family
+    #     family_counter = Counter(potential_dups_flat)
+    #     # Add the maximum number of families represented in the sample region
+    #     all_max_dups.append(max(family_counter.values()))
+    # else:
+    #     # If no features were included, use 0
+    #     all_max_dups.append(0)
     # Calculate the X percentile
     perc_samples = np.percentile(all_max_dups, percentile)
     return perc_samples
