@@ -57,17 +57,6 @@ def create_dirs(paths):
         os.makedirs(path, exist_ok=True)
 
 
-# def check_gff(config):
-#     """
-#     Quality check of GFF file
-#
-#     Arguments:
-#         config {json file} -- json file containing relevant parameters
-#     """
-#     gff = config["gff"]
-#     records = [x.strip().split("\t") for x in open(gff)]
-
-
 def get_genes(gff, feat_type):
     """
     Extract features to be clustered
