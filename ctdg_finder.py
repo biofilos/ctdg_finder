@@ -201,7 +201,7 @@ def cluster_stats(gff, feature, chrom_lengths, cluster_start,
     random_bedtool = pybedtools.BedTool()
     random_intervals = random_bedtool.random(l=cluster_len, n=samples, g=chrom_lengths)
     # Initialize list of the distribution of features from the same family
-    all_max_dups = []
+    # all_max_dups = []
     # Scan random intervals
     # for rand_interval in random_intervals:
     #     # Get coordinates of the interval
@@ -213,19 +213,39 @@ def cluster_stats(gff, feature, chrom_lengths, cluster_start,
     #     # Extract the families of the features overlapping the random region
     #     potential_dups = [x.attr["families"].split(",") for x in GFF_Reader(gff) if
     #                       sample_interval.overlaps(x.iv) and x.type == feature and "None" not in x.attr["families"]]
+    # f = open("debug.log", "a")
+    # f.write("cl_chrom,cl_start,cl_end,sample,sample_chrom,sample_start,sample_end,feat_chrom,feat_start,feat_end\n")
 
-    rand_ivs = [GenomicInterval(x.chrom,x.start,x.end) for x in random_intervals]
-    potential_dups = [set() for x in range(samples)]
+    rand_ivs = [GenomicInterval(x.chrom, x.start, x.end) for x in random_intervals]
+    potential_dups = [[] for x in range(samples)]
     for feat in GFF_Reader(gff):
         if feat.type == feature:
             for ix, sample_interval in enumerate(rand_ivs):
                 if sample_interval.overlaps(feat.iv):
                     families = feat.attr["families"].split(",")
                     if "None" not in families:
-                        potential_dups[ix].update(families)
+                        potential_dups[ix] += families
+                        # f.write("{},{},{},{},{},{},{},{},{},{}\n".format(cluster_chrom, cluster_start, cluster_end,
+                        #                                         ix, sample_interval.chrom, sample_interval.start,
+                        #                                         sample_interval.end, feat.iv.chrom,
+                        #                                         feat.iv.start, feat.iv.end))
+    # f.close()
 
     # Flatten the list of families
-    all_max_dups = [len(x) for x in potential_dups]
+    # samples_log_file = "samples.log"
+    # if os.path.exists(samples_log_file):
+    #     samples_lst = json.load(open(samples_log_file))
+    # else:
+    #     samples_lst = []
+    # ff = open(samples_log_file, "w")
+
+    all_max_dups = [0 for x in potential_dups]
+    for ix, sample in enumerate(potential_dups):
+        if sample:
+            n_dups = max(Counter(sample).values())
+            if n_dups == 1:
+                n_dups = 0
+            all_max_dups[ix] = n_dups
     # potential_dups_flat = []
     # for i in potential_dups:
     #     potential_dups_flat += i
@@ -239,6 +259,13 @@ def cluster_stats(gff, feature, chrom_lengths, cluster_start,
     #     all_max_dups.append(0)
     # Calculate the X percentile
     perc_samples = np.percentile(all_max_dups, percentile)
+    # log_data = {
+    #     "{}_{}_{}".format(cluster_chrom,cluster_start,cluster_end): (all_max_dups, perc_samples)
+    # }
+    # samples_lst.append(log_data)
+    # ff.write(json.dumps(samples_lst))
+    # ff.close()
+    # samples_lst.append({})
     return perc_samples
 
 
@@ -279,15 +306,30 @@ def cluster_with_stats(cluster_family, gff, feature, chrom_lenghts, samples, per
     gene_starts = [x.iv.start for x in cluster_family]
     gene_ends = [x.iv.end for x in cluster_family]
     # Calculate start, end and length of the cluster
-    cluster_start = min(gene_starts)
-    cluster_end = max(gene_ends)
+    # IMPORTANT: HTSeq changes things to 0-based, so
+    # I have to add one to all coordinates here
+    cluster_start = min(gene_starts) + 1
+    cluster_end = max(gene_ends) + 1
     cluster_len = cluster_end - cluster_start
     # Calculate percentile (statistical assesment)
     percentile_thresh = cluster_stats(gff, feature, chrom_lenghts,
                                       cluster_start, cluster_end,
                                       samples, percentile)
     # Check if the cluster has more duplicates than the sample
-    if cluster_n_genes >= percentile_thresh:
+    # Take the first part of the GFF path as the species name
+    sp = gff.split("/")[-1].replace("_genes.gff", "")
+    cluster_name = "{}_{}".format(cluster_chrom, cluster_counter)
+    good_cluster = cluster_n_genes >= percentile_thresh
+    if good_cluster:
+        msg = "*"
+    else:
+        msg = ""
+    msg_cl_name = "...{}".format(cluster_name[-10:])
+    chrom_info = "{}: {} - {}".format(msg_cl_name, cluster_start, cluster_end)
+    print("{} {} D {} P95: {}{}".format(sp.ljust(30), chrom_info.ljust(35),
+                                        str(cluster_n_genes).ljust(3),
+                                        percentile_thresh.round(4), msg))
+    if good_cluster:
         # Extract the names of the gene families represented in the cluster
         families = [x.attr["families"].split(",") for x in cluster_family]
         families_flat = []
@@ -297,7 +339,7 @@ def cluster_with_stats(cluster_family, gff, feature, chrom_lenghts, samples, per
         # Encode the families in the cluster as a comma-separated string
         cl_families = ",".join(families_flat)
         # Format cluster name (chrom_index)
-        cluster_name = "{}_{}".format(cluster_chrom, cluster_counter)
+
         # Encode the attributes in the GFF
         attrs = "ID={};length={};duplicates={};percentile={};families={}\n".format(cluster_name, cluster_len,
                                                                                    cluster_n_genes,
@@ -309,12 +351,9 @@ def cluster_with_stats(cluster_family, gff, feature, chrom_lenghts, samples, per
         cluster_gff_line = "\t".join(cluster_gff)
         # Add cluster to the GFF string
         gff_str += cluster_gff_line
-        # Take the first part of the GFF path as the species name
-        sp = gff.split("/")[-1].replace("_genes.gff", "")
+
         # Print progress
-        print("{} {} {} D {} (P95: {})".format(sp.ljust(30), cluster_name.ljust(23),
-                                               cl_families.ljust(15), str(cluster_n_genes).ljust(3),
-                                               percentile_thresh.round(4)))
+
         # Process the genes in the cluster (ordered by start coordinate)
         for ix, gene in enumerate(sorted(cluster_family, key=sort_genes)):
             # Set the name of the cluster as the parent of the gene
@@ -326,16 +365,18 @@ def cluster_with_stats(cluster_family, gff, feature, chrom_lenghts, samples, per
             # Format GFF line
             gene_gff_pre_line = gene.get_gff_line()
             # Re-format GFF line to comply with GFF3
+            # When returning the gff line, HTSeq works with 1-based coordinates, so changing them is not necessary
             gene_line = gene_gff_pre_line.replace("; ", ";").replace(" ", "=").replace('"', "")
             # Add gene to GFF string
             gff_str += gene_line
     return gff_str
 
 
-def clustering(feature, chrom_homologs, chrom_info, gff, chrom_lenghts, samples, percentile):
+def clustering(feature, chrom_homologs, chrom_info, gff, chrom_lenghts, samples, percentile, chrom_include=[]):
     """
     Process a list of features grouped by chromosome and family and
     calls clusters
+    :param chrom_include: Only analyze chromosomes in this list (mostly for debugging purposes)
     :param feature: feature to be clustered ('gene')
     :param chrom_homologs: dictionary of features from the same family {chrom:{fam1:[gene1,gene2]}}
     :param chrom_info: dictionary containing the bandwidth parameter calculated for each chromosome {chrom1:bandwidth}
@@ -350,46 +391,47 @@ def clustering(feature, chrom_homologs, chrom_info, gff, chrom_lenghts, samples,
     gff_str = ""
     # Parse out genes in each family in each chromosome
     for chrom, fam_dict in chrom_homologs.items():
-        cluster_counter = 1
-        fams_for_removal = []
-        for family, genelist in fam_dict.items():
-            # Perform MeanShift clustering
-            meanshift_labels = meanshift(genelist, chrom_info)
-            # Remove meanshift clusters if they contain only one gene
-            cluster_n_genes = len(genelist)
-            if cluster_n_genes == 1:
-                # This is not being used. Remove
-                fams_for_removal.append((chrom, family))
-            else:
-                # gene_starts, gene_ends = [0] * cluster_n_genes, [0] * cluster_n_genes
-                # cluster_families = []
-                # Initialize groups of clusters
-                cluster_groups = defaultdict(list)
-                for ms_cluster, gene in zip(meanshift_labels, genelist):
-                    # Assign a cluster ID (label from MeanShift) to the cluster candidate to its GF attributes field
-                    ms_cluster_name = "{}_{}".format(chrom, ms_cluster)
-                    gene.attr["meanshift_cluster"] = ms_cluster_name
-                    # Add the gene to the cluster
-                    cluster_groups[ms_cluster_name].append(gene)
-                    # cluster_families += gene.attr["families"].split(',')
-                for ms_cl in cluster_groups:
-                    cluster_gene_list = cluster_groups[ms_cl]
-                    # Skip meanshift clusters with only one gene
-                    if len(cluster_gene_list) > 1:
-                        cluster_gff = cluster_with_stats(cluster_gene_list, gff, feature,
-                                                         chrom_lenghts, samples,
-                                                         percentile, cluster_counter)
-                        cluster_counter += 1
-                        gff_str += cluster_gff
+        if not chrom_include or chrom in chrom_include:
+            cluster_counter = 1
+            fams_for_removal = []
+            for family, genelist in fam_dict.items():
+                # Perform MeanShift clustering
+                meanshift_labels = meanshift(genelist, chrom_info)
+                # Remove meanshift clusters if they contain only one gene
+                cluster_n_genes = len(genelist)
+                if cluster_n_genes == 1:
+                    # This is not being used. Remove
+                    fams_for_removal.append((chrom, family))
+                else:
+                    # gene_starts, gene_ends = [0] * cluster_n_genes, [0] * cluster_n_genes
+                    # cluster_families = []
+                    # Initialize groups of clusters
+                    cluster_groups = defaultdict(list)
+                    for ms_cluster, gene in zip(meanshift_labels, genelist):
+                        # Assign a cluster ID (label from MeanShift) to the cluster candidate to its GF attributes field
+                        ms_cluster_name = "{}_{}".format(chrom, ms_cluster)
+                        gene.attr["meanshift_cluster"] = ms_cluster_name
+                        # Add the gene to the cluster
+                        cluster_groups[ms_cluster_name].append(gene)
+                        # cluster_families += gene.attr["families"].split(',')
+                    for ms_cl in cluster_groups:
+                        cluster_gene_list = cluster_groups[ms_cl]
+                        # Skip meanshift clusters with only one gene
+                        if len(cluster_gene_list) > 1:
+                            cluster_gff = cluster_with_stats(cluster_gene_list, gff, feature,
+                                                             chrom_lenghts, samples,
+                                                             percentile, cluster_counter)
+                            cluster_counter += 1
+                            gff_str += cluster_gff
 
     return gff_str
 
 
-def merge_clusters(out_path, feature_to_cluster):
+def merge_clusters(in_clusters, merged_clusters, feature_to_cluster):
     # Merge overlapping clusters
-    merged_path = out_path.replace("clusters", "merged_clusters")
-    with open(merged_path, "w") as f:
-        merged = pybedtools.BedTool(out_path).filter(lambda x: x.fields[2] == "cluster").sort().merge()
+    # merged_clusters = in_clusters.replace("clusters", "merged_clusters")
+    with open(merged_clusters, "w") as f:
+        merged = pybedtools.BedTool(in_clusters).filter(lambda x: x.fields[2] == "cluster").sort().merge()
         chrom_cts = defaultdict(int)
         for new_cluster in merged:
             cl_chrom = new_cluster.chrom
@@ -397,7 +439,7 @@ def merge_clusters(out_path, feature_to_cluster):
             cl_end = new_cluster.end
             chrom_cts[cl_chrom] += 1
             new_name = "{}_{}".format(cl_chrom, chrom_cts[cl_chrom])
-            clust_genes = sorted([x for x in GFF_Reader(out_path) if
+            clust_genes = sorted([x for x in GFF_Reader(in_clusters) if
                                   x.type == feature_to_cluster and x.iv.chrom == cl_chrom and
                                   x.iv.start < cl_end and x.iv.end > cl_start],
                                  key=lambda x: x.iv.start)
@@ -443,7 +485,8 @@ def run(config_file_dict):
     outfile = gff.replace("_genes.gff", out_suffix).replace("_genes.gff3", out_suffix).split("/")[-1]
     out_dir = config["paths"]["out_dir"]
     out_path = "{}/{}".format(out_dir, outfile)
-    if os.path.exists(out_path) and not config["overwrite"]:
+    merged_clusters = out_path.replace("clusters", "merged_clusters")
+    if os.path.exists(merged_clusters) and not config["overwrite"]:
         print("Not overwriting {}".format(out_path))
     else:
         print("Working on {}".format(gff))
@@ -452,11 +495,11 @@ def run(config_file_dict):
         # Extract bandwidth parameter for MeanShift for all the chromosomes
         chrom_info = get_chrom_info(gff, top_level_feat)
         clusters_gff = clustering(feature_to_cluster, chrom_homologs, chrom_info,
-                                  gff, chrom_lens, samples, percentile_threshold)
+                                  gff, chrom_lens, samples, percentile_threshold, chrom_include=[])
 
         with open(out_path, "w") as f:
             f.write(clusters_gff)
-        merge_clusters(out_path, feature_to_cluster)
+        merge_clusters(out_path, merged_clusters, feature_to_cluster)
 
     print("DONE")
 
