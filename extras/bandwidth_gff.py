@@ -33,7 +33,7 @@ for chrom, c_genes in genes.items():
     # the distance between them
     elif n_genes == 2:
         bw = c_genes[1].iv.start - c_genes[0].iv.end
-        if bw <=0:
+        if bw <= 0:
             bw = 1
     else:
 

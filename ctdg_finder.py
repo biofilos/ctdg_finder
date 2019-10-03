@@ -356,7 +356,8 @@ def cluster_with_stats(cluster_family, gff, feature, chrom_lenghts, samples, per
                                                                                    percentile_thresh, cl_families)
         # Format cluster information into a GFF string
         cluster_gff = [cluster_chrom, "CTDGFinder", "cluster",
-                       str(cluster_start), str(cluster_end), ".", ".", ".",
+                       # Fix zero-based from HTSeq
+                       str(cluster_start+1), str(cluster_end), ".", ".", ".",
                        attrs]
         cluster_gff_line = "\t".join(cluster_gff)
         # Add cluster to the GFF string
