@@ -147,10 +147,15 @@ def meanshift(gene_list, chrom_info):
         xy = [[0, 0] for x in gene_list]
         for ix in range(n_genes - 1):
             gene1 = gene_list[ix].iv
-            for ix2 in range(ix + 1, n_genes):
-                gene2 = gene_list[ix2].iv
-                ig = gene2.start - gene1.end
-                xy[ix + 1][0] = ig
+            ix2 = ix + 1
+            gene2 = gene_list[ix2].iv
+            ig = gene2.start - gene1.end
+            # In case of overlapping genes, set the IG to 1
+            if ig < 0:
+                ig = gene1.end + 1
+            # Set the coordinates as the intergenic distance plus the
+            # coordinate of the gene before
+            xy[ix + 1][0] = ig + xy[ix][0]
 
         # Get bandwidth from one of the genes
         chromosome = gene_list[0].iv.chrom
