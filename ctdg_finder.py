@@ -507,7 +507,7 @@ def run(config_file_dict):
         chrom_info = get_chrom_info(gff, top_level_feat)
         clusters_gff = clustering(feature_to_cluster, chrom_homologs, chrom_info,
                                   gff, chrom_lens, samples, percentile_threshold,
-                                  chrom_include=["chrLGf"])
+                                  chrom_include=[])
 
         with open(out_path, "w") as f:
             f.write(clusters_gff)
