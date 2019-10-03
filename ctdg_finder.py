@@ -152,7 +152,7 @@ def meanshift(gene_list, chrom_info):
             ig = gene2.start - gene1.end
             # In case of overlapping genes, set the IG to 1
             if ig < 0:
-                ig = gene1.end + 1
+                ig = 1
             # Set the coordinates as the intergenic distance plus the
             # coordinate of the gene before
             xy[ix + 1][0] = ig + xy[ix][0]
