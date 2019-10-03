@@ -319,7 +319,7 @@ def cluster_with_stats(cluster_family, gff, feature, chrom_lenghts, samples, per
     # IMPORTANT: HTSeq changes things to 0-based, so
     # I have to add one to all coordinates here
     cluster_start = min(gene_starts) + 1
-    cluster_end = max(gene_ends) + 1
+    cluster_end = max(gene_ends)
     cluster_len = cluster_end - cluster_start
     # Calculate percentile (statistical assesment)
     percentile_thresh = cluster_stats(gff, feature, chrom_lenghts,
@@ -356,8 +356,7 @@ def cluster_with_stats(cluster_family, gff, feature, chrom_lenghts, samples, per
                                                                                    percentile_thresh, cl_families)
         # Format cluster information into a GFF string
         cluster_gff = [cluster_chrom, "CTDGFinder", "cluster",
-                       # Fix zero-based from HTSeq
-                       str(cluster_start+1), str(cluster_end), ".", ".", ".",
+                       str(cluster_start), str(cluster_end), ".", ".", ".",
                        attrs]
         cluster_gff_line = "\t".join(cluster_gff)
         # Add cluster to the GFF string
@@ -475,7 +474,8 @@ def merge_clusters(in_clusters, merged_clusters, feature_to_cluster):
             cl_length = cl_end - cl_start
             cl_attrs = "ID={};duplicates={};length={};families={}".format(new_name, len(clust_genes),
                                                                           cl_length, cl_fams)
-            cl_summary_gff_str = "{}\tCTDGFinder\tcluster\t{}\t{}\t.\t.\t.\t{}\n".format(cl_chrom, cl_start, cl_end,
+            # Fix zero-based from HTSeq
+            cl_summary_gff_str = "{}\tCTDGFinder\tcluster\t{}\t{}\t.\t.\t.\t{}\n".format(cl_chrom, cl_start + 1, cl_end,
                                                                                          cl_attrs)
             f.write(cl_summary_gff_str)
             f.write(cl_gff_str)
@@ -506,7 +506,8 @@ def run(config_file_dict):
         # Extract bandwidth parameter for MeanShift for all the chromosomes
         chrom_info = get_chrom_info(gff, top_level_feat)
         clusters_gff = clustering(feature_to_cluster, chrom_homologs, chrom_info,
-                                  gff, chrom_lens, samples, percentile_threshold, chrom_include=[])
+                                  gff, chrom_lens, samples, percentile_threshold,
+                                  chrom_include=["chrLGf"])
 
         with open(out_path, "w") as f:
             f.write(clusters_gff)
