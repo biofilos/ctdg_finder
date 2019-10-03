@@ -32,18 +32,60 @@ def count_genes(gff, feature):
                 done.append(gene)
     return gene_d
 
-# def measure_clusters(genome, clusters):
+
+def measure_clusters(genome, clusters):
+    """
+    Calculate the total length of each top-level sequence
+    that is clustered, and compare it with the length of
+    their top-level sequences
+    :param genome:
+    :param clusters:
+    :return: pd.DataFrame with total lengths of clusters and
+    their top-level sequences, and the proportion of the
+    chromosome length spanned by clusters
+    """
+    clusters_len = defaultdict(int)
+    chromosomes_len = defaultdict(int)
+    # Parse cluster lengths
+    for feat in GFF(clusters):
+        if feat.type == "cluster":
+            clusters_len[feat.iv.chrom] += int(feat.attr["length"])
+    # Parse chromosome lengths
+    for line in open(genome):
+        chrom, str_len = line.strip().split("\t")
+        length = int(str_len)
+        chromosomes_len[chrom] += length
+    # Assemble measurements in dataframe
+    cluster_tab = pd.concat([pd.Series(x) for x in [chromosomes_len, clusters_len]], 1)
+    col_names = ("chromosome_length", "clustered_regions_length")
+    cluster_tab.columns = col_names
+    cluster_tab.loc[:, "prop_cluster_length"] = cluster_tab[col_names[1]] / cluster_tab[col_names[0]]
+    return cluster_tab
 
 
 def cluster_stats(genome, annotation, clusters, feature):
+    """
+    Assemble basic stats on numbers of clustered genes and the
+    length of the clusters across the genome
+    :param genome: path to genome file
+    :param annotation: path to annotation gff file
+    :param clusters: path to merged clusters gff file
+    :param feature: feature to be clustered
+    :return: pd.DataFrame
+    """
+    # Count genes
     all_genes = count_genes(annotation, feature)
+    # Count clustered genes
     clu_genes = count_genes(clusters, feature)
-
+    # Assemble table
     gene_table = pd.concat([pd.Series(x) for x in [all_genes, clu_genes]], 1).dropna()
     gene_table.columns = ("genes", "clustered_genes")
     gene_table.loc[:, "prop_clustered"] = gene_table["clustered_genes"] / gene_table["genes"]
     gene_table.sort_values("prop_clustered", inplace=True)
-    return gene_table
+    # Include cluster/top-level sequence information
+    cluster_tab = measure_clusters(genome, clusters)
+    big_table = pd.concat([gene_table, cluster_tab], 1)
+    return big_table.dropna()
 
 
 if __name__ == "__main__":
@@ -52,3 +94,4 @@ if __name__ == "__main__":
     CLUSTERS = argv[3]
     stats_table = cluster_stats(GENOME, ANNOTATION, CLUSTERS, FEATURE)
     #comment
+

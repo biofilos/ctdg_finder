@@ -85,7 +85,7 @@ def merge_ranges(intervals):
             # we know via sorting that lower[0] <= higher[0]
             if higher[0] <= lower[1]:
                 upper_bound = max(lower[1], higher[1])
-                merged[-1] = (lower[0], upper_bound)  # replace by merged interval
+                merged[-1] = (lower[0], upper_bound)  # replace by merged iv
             else:
                 merged.append(higher)
     return merged
