@@ -123,6 +123,9 @@ def get_chrom_homologs(gff, feat_type):
             # Add genes to the family (or families) they belong to
             for fam in gene.attr["families"].split(","):
                 families[chrom][fam].append(gene)
+        # Order the genes by start coordinate in case the GFF was not sorted
+        for fam, genelist in families[chrom].items():
+            families[chrom][fam] = sorted(genelist, key=lambda x: x.iv.start)
     return families
 
 
@@ -134,14 +137,27 @@ def meanshift(gene_list, chrom_info):
     :return: labels of the clusters
     """
     # Process only lists with more than one gene
-    if len(gene_list) == 1:
+    n_genes = len(gene_list)
+    if n_genes == 1:
         return [0]
     else:
+        # Here, I am going to subtract the length of n gene from
+        # all the genes next to it. This to eliminate the
+        # influence of gene lengths in the intergenic distance
+        xy = [[0, 0] for x in gene_list]
+        for ix in range(n_genes - 1):
+            gene1 = gene_list[ix].iv
+            for ix2 in range(ix + 1, n_genes):
+                gene2 = gene_list[ix2].iv
+                ig = gene2.start - gene1.end
+                xy[ix + 1][0] = ig
+
         # Get bandwidth from one of the genes
         chromosome = gene_list[0].iv.chrom
+
         bandwidth = chrom_info[chromosome]
         # The MeanShift works on two-dimensional data, so a zero will be inputed as the "y coordinate"
-        xy = [(gene.iv.start, 0) for gene in gene_list]
+        # xy = [(gene.iv.start, 0) for gene in gene_list]
         # Run the MeanShift algorithm
         ms = MeanShift(bandwidth=bandwidth).fit(xy)
         return ms.labels_
@@ -149,20 +165,20 @@ def meanshift(gene_list, chrom_info):
 
 def genes_in_interval(record, feature, chrom, start, end):
     """
-    Check if a feature is of a specific type and is in a specified interval
+    Check if a feature is of a specific type and is in a specified iv
     (used for filtering)
     :param record: BedTool (feature)
     :param feature: feature type
     :param chrom: chromosome name
-    :param start: start of the interval
-    :param end: end of the interval
+    :param start: start of the iv
+    :param end: end of the iv
     :return: bool
     """
     # Check that the record is of the specified feature
     is_feat = record.fields[2] == feature
     # Check that the record is in the correct chromosome
     in_chrom = record.chrom == chrom
-    # Check if the record overlaps the specified interval
+    # Check if the record overlaps the specified iv
     inside_interval = record.start < end and record.end > start
     # Return True if all conditions are True
     return is_feat and in_chrom and inside_interval
@@ -193,7 +209,7 @@ def cluster_stats(gff, feature, chrom_lengths, cluster_start,
     # all_max_dups = []
     # Scan random intervals
     # for rand_interval in random_intervals:
-    #     # Get coordinates of the interval
+    #     # Get coordinates of the iv
     #     r_start = rand_interval.start
     #     r_end = rand_interval.end
     #     r_chrom = rand_interval.chrom
@@ -361,7 +377,7 @@ def cluster_with_stats(cluster_family, gff, feature, chrom_lenghts, samples, per
     return gff_str
 
 
-def clustering(feature, chrom_homologs, chrom_info, gff, chrom_lenghts, samples, percentile, chrom_include=[]):
+def clustering(feature, chrom_homologs, chrom_info, gff, chrom_lenghts, samples, percentile, chrom_include):
     """
     Process a list of features grouped by chromosome and family and
     calls clusters
@@ -380,7 +396,7 @@ def clustering(feature, chrom_homologs, chrom_info, gff, chrom_lenghts, samples,
     gff_str = ""
     # Parse out genes in each family in each chromosome
     for chrom, fam_dict in chrom_homologs.items():
-        if not chrom_include or chrom in chrom_include:
+        if len(chrom_include) == 0 or chrom in chrom_include:
             cluster_counter = 1
             fams_for_removal = []
             for family, genelist in fam_dict.items():
