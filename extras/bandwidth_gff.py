@@ -32,7 +32,9 @@ for chrom, c_genes in genes.items():
     # If there are two genes, the bandwidth is
     # the distance between them
     elif n_genes == 2:
-        bw = abs(c_genes[1].iv.start - c_genes[0].iv.end)
+        bw = c_genes[1].iv.start - c_genes[0].iv.end
+        if bw <=0:
+            bw = 1
     else:
 
         intergenics = [0] * (n_genes - 1)
