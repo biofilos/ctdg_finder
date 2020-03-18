@@ -56,4 +56,4 @@ with open(gff_out, "w") as f:
         if feat.type == "chromosome":
             feat.attr["bandwidth"] = ig_d[feat.iv.chrom]
         f.write(feat.get_gff_line().replace('"', "").replace("; ", ";").replace(" ", "="))
-print(1)
+print(gff_out)

@@ -5,10 +5,14 @@ import json
 """
 Given a database directory, calculate the bandwidth parameter for
 MeanShift and include it in the chromosomes.csv file
+Usage:
+    python bandwidth.py genes_parsed.csv chromosomes.csv out.json CPUs
 """
 
-db_dir = argv[1]
-CPU = int(argv[2])
+GENES = argv[1]
+CHROMS = argv[2]
+JSON_OUT = argv[3]
+CPU = int(argv[4])
 
 def intergenic(c_table):
     # If there is only one gene in the chromosome
@@ -53,8 +57,8 @@ def get_bw(ch_ix):
     return str_out
 
 
-genes = pd.read_csv(db_dir + "/genes_parsed.csv")
-chromosomes = pd.read_csv(db_dir + "/pre_chromosomes.csv")
+genes = pd.read_csv(GENES)
+chromosomes = pd.read_csv(CHROMS)
 genes.sort_values(["species", "chromosome", "start"], inplace=True)
 
 # Calculate bandwidth for each chromosome
@@ -62,9 +66,9 @@ with futures.ProcessPoolExecutor(CPU) as pool:
     bw_map = pool.map(get_bw,  chromosomes.index)
 
 # Set files
-chrom_file = open(db_dir + "/chromosomes.csv", "w")
-chrom_file.write("species,chromosome,length,bandwidth\n")
-dict_out = open(db_dir + "/chromosomes.json", "w")
+#chrom_file = open(db_dir + "/chromosomes.csv", "w")
+#chrom_file.write("species,chromosome,length,bandwidth\n")
+dict_out = open(JSON_OUT, "w")
 chrom_d = dict()
 for chrom_data in bw_map:
     sp, chrom, length, bw = chrom_data.strip().split(",")
@@ -73,8 +77,8 @@ for chrom_data in bw_map:
         chrom_d[sp] = {chrom:[int(length), float(bw)]}
     else:
         chrom_d[sp][chrom] = [int(length), float(bw)]
-    chrom_file.write(chrom_data)
-chrom_file.close()
+    #chrom_file.write(chrom_data)
+#chrom_file.close()
 
 # Write dictionary as json
 dict_out.write(json.dumps(chrom_d))
