@@ -1,13 +1,13 @@
 import json
 import os
-import pybedtools
 import sys
-from collections import defaultdict, Counter
-# import gffutils
-from HTSeq import GFF_Reader, GenomicInterval
-from sklearn.cluster import MeanShift
-import numpy as np
+from collections import Counter, defaultdict
 
+import numpy as np
+import pybedtools
+# import gffutils
+from HTSeq import GenomicInterval, GFF_Reader
+from sklearn.cluster import MeanShift
 
 # Load configuration
 
@@ -16,7 +16,6 @@ def load_config(config_json_dict):
     """
     Check that the config file has all the relevant parameters
     and that the files referenced in it exist, and return a dictionary
-    
     Arguments:
         config_json_dict {str or dict} -- JSON file containing relevant parameters or dictionary of parsed JSON
     """
@@ -486,6 +485,7 @@ def run(config_file_dict):
 
     config = load_config(config_file_dict)
     gff = config["gff"]
+    base = gff.split("/")[-1].replace(".gff3", "").replace(".gff", "")
     chrom_lens = config["chroms"]
     samples = config["samples"]
     percentile_threshold = config["percentile_threshold"]
@@ -493,7 +493,7 @@ def run(config_file_dict):
     top_level_feat = config["top_level_feat"]
     create_dirs(config["paths"])
     out_suffix = "_clusters.gff"
-    outfile = gff.replace("_genes.gff", out_suffix).replace("_genes.gff3", out_suffix).split("/")[-1]
+    outfile = base + out_suffix
     out_dir = config["paths"]["out_dir"]
     out_path = "{}/{}".format(out_dir, outfile)
     merged_clusters = out_path.replace("clusters", "merged_clusters")

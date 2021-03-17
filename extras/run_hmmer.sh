@@ -1,33 +1,23 @@
-#!/bin/sh
+#!/usr/bin/env bash
+set -e
 
 script_dir=`dirname $0`
-db_dir=$1
-cpus=$2
+top_level=$1
+proteome=$2
+hmmer_db=$3
+gff_in=$4
+gff_out=$5
+chroms_out=$6
+cpus=$7
 
-# Create directory structure
-for i in hmmer hmmers graphs matrices sp_hmmers
-do
-	mkdir -p $db_dir/$i
-done
 
-# Calculate bandwidth parameter
-echo Calculating bandwidth
-python3 $script_dir/bandwidth.py $db_dir $cpus
+
 # Generate hmmer database
-hmmpress $db_dir/panther/panther.hmm
+hmmpress "$hmmer_db"
 # Run HMMsearch
 echo Running HMMeR
-hmmsearch --cpu $cpus --noali -E 0.0001 -o $db_dir/hmmer/all.hmmer --tblout $db_dir/hmmer/all.tbl --domtblout $db_dir/hmmer/all.dom $db_dir/panther/panther.hmm $db_dir/seqs_hmmer.fa
+mkdir -p hmmer
+hmmsearch --cpu "$cpus" --noali -E 0.0001 -o hmmer/all.hmmer --domtblout hmmer/all.dom "$hmmer_db" "$proteome"
 # Parse hmmer output
 echo Parsing HMMeR output
-python3 $script_dir/parse_big_hmmer_strict.py $db_dir/hmmer/all.dom $db_dir/hmmer/pfam.json $db_dir/hmmer/hmmer_filtered.csv
-# Generate chromosome-specific JSON files
-echo Generating dictionaries
-python3 $script_dir/hits_dictionary.py $db_dir $cpus
-# Generate homology graphs
-echo Generating homology graphs
-python3 $script_dir/domains_net.py $db_dir/hmmer/pfam.json $db_dir/genes_parsed.csv $db_dir/graphs $cpus
-# Generate homology matrices
-echo Generating homology matrices
-python3 $script_dir/parse_matrices.py $db_dir/graphs $db_dir/matrices
-
+python "$script_dir"/annotate_gff.py "$top_level" "$gff_in" hmmer/all.dom "$gff_out" "$chroms_out"

@@ -1,6 +1,6 @@
 {
-    "gff": "../sharks/ctdg_db_onlyfam/Homo_sapiens_genes.gff",
-    "chroms": "../sharks/ctdg_db_onlyfam/Homo_sapiens_chroms.txt",
+    "gff": "./sample_genome/db/chroms19_6_annotated.gff",
+    "chroms": "./sample_genome/db/chromosomes.tsv",
     "paths": {
         "out_dir": "./out_sample"
     },
